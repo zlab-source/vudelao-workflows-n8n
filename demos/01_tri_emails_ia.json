@@ -1,0 +1,338 @@
+{
+  "name": "Démo 1 · Tri des emails entrants par IA (100 % local)",
+  "nodes": [
+    {
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## 📥 Tri des emails entrants par IA\n**Problème :** le gérant d'une TPE passe 30 à 60 min par jour à trier sa boîte de réception.\n\n**Solution :** chaque email est lu par une IA **locale** (aucune donnée envoyée à OpenAI), classé, résumé, puis transmis au bon service avec un **brouillon de réponse**. Les urgences déclenchent une alerte au gérant.\n\n**Démo :** le formulaire simule l'arrivée d'un email. En production, il est remplacé par un déclencheur Gmail, Outlook ou IMAP.\n\n*Entreprise fictive « Chêne & Cie » — démonstration.*",
+        "width": 520,
+        "height": 320,
+        "color": 5
+      }
+    },
+    {
+      "name": "Email entrant (simulation)",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Simuler un email entrant",
+        "formDescription": "Démo : en production, ce déclencheur est remplacé par Gmail, Outlook ou IMAP.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Email de l'expéditeur",
+              "fieldName": "de_email",
+              "fieldType": "email",
+              "requiredField": true,
+              "placeholder": "client@exemple.fr"
+            },
+            {
+              "fieldLabel": "Nom de l'expéditeur",
+              "fieldName": "de_nom",
+              "fieldType": "text",
+              "placeholder": "Mme Durand"
+            },
+            {
+              "fieldLabel": "Objet",
+              "fieldName": "objet",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Message",
+              "fieldName": "message",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Envoyer l'email",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Email reçu : l'analyse IA est en cours. Résultat dans la boîte Mailpit (http://localhost:8025)."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Analyse IA de l'email",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        100
+      ],
+      "parameters": {
+        "text": "=De : {{ $json.de_nom }} <{{ $json.de_email }}>\nObjet : {{ $json.objet }}\n\n{{ $json.message }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"categorie\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"devis\",\n        \"facture_paiement\",\n        \"sav_reclamation\",\n        \"rendez_vous\",\n        \"prospection_spam\",\n        \"autre\"\n      ]\n    },\n    \"urgence\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"haute\",\n        \"normale\",\n        \"basse\"\n      ]\n    },\n    \"resume\": {\n      \"type\": \"string\",\n      \"description\": \"Résumé en une ou deux phrases\"\n    },\n    \"entreprise\": {\n      \"type\": \"string\",\n      \"description\": \"Entreprise de l'expéditeur si elle est mentionnée, sinon vide\"\n    },\n    \"telephone\": {\n      \"type\": \"string\",\n      \"description\": \"Numéro de téléphone s'il figure dans le message, sinon vide\"\n    },\n    \"reponse_proposee\": {\n      \"type\": \"string\",\n      \"description\": \"Brouillon de réponse au client\"\n    }\n  },\n  \"required\": [\n    \"categorie\",\n    \"urgence\",\n    \"resume\",\n    \"reponse_proposee\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu es l'assistant administratif d'une TPE du bâtiment (menuiserie). Tu analyses chaque email entrant.\nCatégories possibles :\n- devis : demande de prix, de chiffrage ou de visite technique ;\n- facture_paiement : facture, paiement, avoir, relance d'un fournisseur ;\n- sav_reclamation : problème sur un chantier ou un produit posé, réclamation, garantie ;\n- rendez_vous : prise, modification ou annulation de rendez-vous ;\n- prospection_spam : démarchage commercial, newsletter, publicité, spam ;\n- autre : tout le reste.\nUrgence « haute » uniquement si un dommage est en cours, si un client est bloqué ou si une échéance tombe sous 48 h.\nLa réponse proposée est un brouillon poli, en français, signé « L'équipe Chêne & Cie », qui n'invente ni prix ni date.\nRéponds uniquement avec les champs demandés."
+        }
+      }
+    },
+    {
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        260,
+        320
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.2,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "name": "Préparer le routage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Associe chaque catégorie au bon service et prépare le message transmis.\nconst services = {\n  devis: { service: 'Commercial', to: 'commercial@chene-et-cie.demo' },\n  facture_paiement: { service: 'Comptabilité', to: 'compta@chene-et-cie.demo' },\n  sav_reclamation: { service: 'SAV', to: 'sav@chene-et-cie.demo' },\n  rendez_vous: { service: 'Planning', to: 'planning@chene-et-cie.demo' },\n  prospection_spam: { service: 'Archivé', to: '' },\n  autre: { service: 'Accueil', to: 'contact@chene-et-cie.demo' },\n};\nconst email = $('Email entrant (simulation)').item.json;\nconst ia = $json.output;\nconst cible = services[ia.categorie] ?? services.autre;\nconst esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst urgent = ia.urgence === 'haute';\nreturn {\n  ...ia,\n  ...cible,\n  urgent,\n  sujet: (urgent ? '[URGENT] ' : '') + '[' + cible.service + '] ' + email.objet,\n  html: `<div style=\"font-family:Arial,sans-serif;max-width:640px\">\n<p style=\"background:${urgent ? '#fdecea' : '#eef4f7'};padding:10px 14px;border-radius:6px\">\n<b>Catégorie :</b> ${esc(ia.categorie)} · <b>Urgence :</b> ${esc(ia.urgence)}<br>\n<b>Résumé IA :</b> ${esc(ia.resume)}</p>\n<p><b>Expéditeur :</b> ${esc(email.de_nom)} &lt;${esc(email.de_email)}&gt;${ia.entreprise ? ' · ' + esc(ia.entreprise) : ''}${ia.telephone ? ' · ' + esc(ia.telephone) : ''}</p>\n<h3 style=\"margin-bottom:4px\">Brouillon de réponse (à relire avant envoi)</h3>\n<pre style=\"white-space:pre-wrap;font-family:inherit;border-left:3px solid #4A5B6B;padding-left:10px\">${esc(ia.reponse_proposee)}</pre>\n<h3 style=\"margin-bottom:4px\">Message d'origine</h3>\n<p><b>Objet :</b> ${esc(email.objet)}</p>\n<pre style=\"white-space:pre-wrap;font-family:inherit;color:#555\">${esc(email.message)}</pre></div>`,\n};"
+      }
+    },
+    {
+      "name": "Spam ou prospection ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8000-000000000007",
+              "leftValue": "={{ $json.categorie }}",
+              "rightValue": "prospection_spam",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Archiver sans notifier",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        -20
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Transmettre au bon service",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1060,
+        200
+      ],
+      "parameters": {
+        "fromEmail": "assistant@chene-et-cie.demo",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.sujet }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "name": "Urgent ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8000-000000000011",
+              "leftValue": "={{ $('Préparer le routage').item.json.urgent }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Alerter le gérant",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        120
+      ],
+      "parameters": {
+        "fromEmail": "assistant@chene-et-cie.demo",
+        "toEmail": "gerant@chene-et-cie.demo",
+        "subject": "=🚨 Urgence {{ $('Préparer le routage').item.json.service }} : {{ $('Email entrant (simulation)').item.json.objet }}",
+        "emailFormat": "html",
+        "html": "={{ $('Préparer le routage').item.json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Email entrant (simulation)": {
+      "main": [
+        [
+          {
+            "node": "Analyse IA de l'email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyse IA de l'email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse IA de l'email": {
+      "main": [
+        [
+          {
+            "node": "Préparer le routage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le routage": {
+      "main": [
+        [
+          {
+            "node": "Spam ou prospection ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spam ou prospection ?": {
+      "main": [
+        [
+          {
+            "node": "Archiver sans notifier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transmettre au bon service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transmettre au bon service": {
+      "main": [
+        [
+          {
+            "node": "Urgent ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Urgent ?": {
+      "main": [
+        [
+          {
+            "node": "Alerter le gérant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  }
+}

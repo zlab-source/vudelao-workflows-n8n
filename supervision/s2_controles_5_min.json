@@ -1,0 +1,989 @@
+{
+  "name": "Supervision · 2. Contrôles toutes les 5 minutes",
+  "nodes": [
+    {
+      "name": "Note 20",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -420
+      ],
+      "parameters": {
+        "content": "## ⏱️ Contrôles automatiques\n**Disponibilité** : chaque instance cliente est interrogée toutes les 5 min (`/healthz`). Alerte après **2 échecs consécutifs**, puis avis de rétablissement avec la durée de l'interruption.\n\n**Tâches silencieuses** : une automatisation arrêtée ne génère aucune erreur. Chaque tâche importante envoie un signal de vie ; sans signal depuis 1,5 × la fréquence attendue, alerte.\n\nListe des clients : table `sup_clients` · tâches surveillées : table `sup_controles`.",
+        "width": 620,
+        "height": 340,
+        "color": 5
+      }
+    },
+    {
+      "name": "Toutes les 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Clients supervisés",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_clients"
+        },
+        "matchType": "anyCondition",
+        "filters": {},
+        "returnAll": true
+      }
+    },
+    {
+      "name": "Instances à vérifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Garde uniquement les instances actives.\nreturn $input.all().filter(i => i.json.actif !== false).map((i, n) => ({ json: i.json, pairedItem: { item: n } }));"
+      }
+    },
+    {
+      "name": "Tester l'instance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": false
+    },
+    {
+      "name": "Évaluer l'état",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Compare le résultat du contrôle à l'état précédent. Hors ligne après 2 échecs consécutifs (évite les fausses alertes).\nconst c = $('Instances à vérifier').item.json;\nconst ok = !$json.error && Number($json.statusCode) === 200;\nconst echecs = ok ? 0 : Number(c.echecs || 0) + 1;\nconst avant = c.etat || 'ok';\nconst apres = ok ? 'ok' : (echecs >= 2 ? 'hors_ligne' : avant);\nlet evenement = null;\nif (avant !== 'hors_ligne' && apres === 'hors_ligne') evenement = 'indisponible';\nif (avant === 'hors_ligne' && apres === 'ok') evenement = 'retablie';\nconst detail = ok ? 'HTTP 200' : ($json.error?.message || $json.error || ('HTTP ' + $json.statusCode));\nreturn { id: c.id, client: c.client, url: c.url, echecs, etat: apres, evenement, detail: String(detail).slice(0, 300), verif: new Date().toISOString() };"
+      }
+    },
+    {
+      "name": "Mettre à jour l'état",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_clients"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "etat": "={{ $json.etat }}",
+            "echecs": "={{ $json.echecs }}",
+            "derniere_verif": "={{ $json.verif }}",
+            "hors_ligne_depuis": "={{ $json.evenement === 'indisponible' ? $json.verif : ($json.etat === 'ok' ? null : $('Instances à vérifier').item.json.hors_ligne_depuis) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "etat",
+              "displayName": "etat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "echecs",
+              "displayName": "echecs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "derniere_verif",
+              "displayName": "derniere_verif",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "hors_ligne_depuis",
+              "displayName": "hors_ligne_depuis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Changement d'état ?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-9000-000000000028",
+              "leftValue": "={{ $('Évaluer l\\'état').item.json.evenement }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Préparer l'incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Journalise le changement d'état ; calcule la durée de l'interruption lors du rétablissement.\nconst e = $('Évaluer l\\'état').item.json;\nconst debut = $('Instances à vérifier').item.json.hors_ligne_depuis;\nconst duree = e.evenement === 'retablie' && debut ? Math.round((Date.now() - new Date(debut)) / 60000) : 0;\nreturn {\n  horodatage: e.verif, client: e.client, type: e.evenement, workflow: 'Instance n8n', noeud: e.url,\n  message: e.evenement === 'indisponible' ? 'Instance injoignable : ' + e.detail : 'Instance de nouveau disponible',\n  lien: e.url, cle: e.client + ' | disponibilite', alerte: true, duree_min: duree,\n};"
+      }
+    },
+    {
+      "name": "Journaliser",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_incidents"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Rédiger l'alerte disponibilité",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst carte = (couleur, titre, lignes) => `<div style=\"font-family:Arial,sans-serif;max-width:640px;border-left:5px solid ${couleur};padding:6px 16px\">\n<h2 style=\"margin:4px 0 10px;color:#23303B\">${titre}</h2>${lignes.filter(Boolean).map(([k, v]) => `<p style=\"margin:4px 0\"><b>${k} :</b> ${v}</p>`).join('')}\n<p style=\"color:#8FA3B5;font-size:12px;margin-top:14px\">Supervision n8n · ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}</p></div>`;\nconst i = $('Préparer l\\'incident').item.json;\nconst bas = i.type === 'indisponible';\nreturn { sujet: (bas ? '🔴 Instance hors ligne · ' : '🟢 Instance rétablie · ') + i.client, html: carte(bas ? '#E5484D' : '#30A46C',\n  bas ? 'Instance n8n injoignable' : 'Instance n8n rétablie', [\n  ['Client', esc(i.client)], ['Adresse contrôlée', esc(i.noeud)], ['Détail', esc(i.message)],\n  !bas && ['Durée de l\\'interruption', i.duree_min + ' min (précision : 5 min)'] ]) };"
+      }
+    },
+    {
+      "name": "Envoyer l'alerte disponibilité",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "supervision@supervision.demo",
+        "toEmail": "alertes@supervision.demo",
+        "subject": "={{ $json.sujet }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "name": "Tâches surveillées",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        260
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_controles"
+        },
+        "matchType": "anyCondition",
+        "filters": {},
+        "returnAll": true
+      }
+    },
+    {
+      "name": "Tâches en retard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Une tâche est en retard si aucun signal de vie n'est arrivé depuis 1,5 × sa fréquence attendue.\nconst out = [];\n$input.all().forEach((i, n) => {\n  const t = i.json;\n  if (t.actif === false || t.en_retard === true) return;\n  // Jamais moins de 10 min : le contrôle lui-même ne passe que toutes les 5 min.\n  const attendu = Math.max(Number(t.frequence_min || 1440) * 1.5, 10) * 60000;\n  const dernier = t.dernier_signal ? new Date(t.dernier_signal).getTime() : 0;\n  if (Date.now() - dernier > attendu) out.push({ json: { ...t, depuis_min: dernier ? Math.round((Date.now() - dernier) / 60000) : null }, pairedItem: { item: n } });\n});\nreturn out;"
+      }
+    },
+    {
+      "name": "Marquer en retard",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        260
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_controles"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "en_retard": true
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "en_retard",
+              "displayName": "en_retard",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Préparer l'incident retard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const t = $('Tâches en retard').item.json;\nreturn {\n  horodatage: new Date().toISOString(), client: t.client, type: 'retard', workflow: t.tache, noeud: '',\n  message: t.depuis_min === null ? 'Aucun signal de vie reçu depuis la mise en surveillance' : 'Aucun signal de vie depuis ' + t.depuis_min + ' min (attendu toutes les ' + t.frequence_min + ' min)',\n  lien: '', cle: t.client + ' | ' + t.tache + ' | retard', alerte: true, duree_min: 0,\n};"
+      }
+    },
+    {
+      "name": "Journaliser le retard",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        260
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_incidents"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Rédiger l'alerte retard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst carte = (couleur, titre, lignes) => `<div style=\"font-family:Arial,sans-serif;max-width:640px;border-left:5px solid ${couleur};padding:6px 16px\">\n<h2 style=\"margin:4px 0 10px;color:#23303B\">${titre}</h2>${lignes.filter(Boolean).map(([k, v]) => `<p style=\"margin:4px 0\"><b>${k} :</b> ${v}</p>`).join('')}\n<p style=\"color:#8FA3B5;font-size:12px;margin-top:14px\">Supervision n8n · ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}</p></div>`;\nconst i = $('Préparer l\\'incident retard').item.json;\nreturn { sujet: '🟠 Tâche planifiée silencieuse · ' + i.client + ' · ' + i.workflow, html: carte('#F5A524', 'Une tâche planifiée ne s\\'est pas exécutée', [\n  ['Client', esc(i.client)], ['Tâche', esc(i.workflow)], ['Constat', esc(i.message)],\n  ['Pourquoi c\\'est important', 'Une automatisation arrêtée ne produit aucune erreur : sans ce contrôle, personne ne s\\'en rend compte.'] ]) };"
+      }
+    },
+    {
+      "name": "Envoyer l'alerte retard",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        260
+      ],
+      "parameters": {
+        "fromEmail": "supervision@supervision.demo",
+        "toEmail": "alertes@supervision.demo",
+        "subject": "={{ $json.sujet }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "name": "Note 41",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        520
+      ],
+      "parameters": {
+        "content": "### ⚙️ À lancer une seule fois\nCrée les 3 tables et ajoute 2 clients + 2 tâches de démonstration (dont un client volontairement injoignable et une tâche volontairement en retard).",
+        "width": 420,
+        "height": 160,
+        "color": 7
+      }
+    },
+    {
+      "name": "Initialiser la supervision",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        740
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Table clients",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        740
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "sup_clients",
+        "columns": {
+          "column": [
+            {
+              "name": "client",
+              "type": "string"
+            },
+            {
+              "name": "url",
+              "type": "string"
+            },
+            {
+              "name": "actif",
+              "type": "boolean"
+            },
+            {
+              "name": "etat",
+              "type": "string"
+            },
+            {
+              "name": "echecs",
+              "type": "number"
+            },
+            {
+              "name": "derniere_verif",
+              "type": "date"
+            },
+            {
+              "name": "hors_ligne_depuis",
+              "type": "date"
+            },
+            {
+              "name": "contact",
+              "type": "string"
+            },
+            {
+              "name": "formule",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "name": "Table tâches",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        740
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "sup_controles",
+        "columns": {
+          "column": [
+            {
+              "name": "client",
+              "type": "string"
+            },
+            {
+              "name": "tache",
+              "type": "string"
+            },
+            {
+              "name": "frequence_min",
+              "type": "number"
+            },
+            {
+              "name": "actif",
+              "type": "boolean"
+            },
+            {
+              "name": "en_retard",
+              "type": "boolean"
+            },
+            {
+              "name": "dernier_signal",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "name": "Table incidents",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        740
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "sup_incidents",
+        "columns": {
+          "column": [
+            {
+              "name": "horodatage",
+              "type": "date"
+            },
+            {
+              "name": "client",
+              "type": "string"
+            },
+            {
+              "name": "type",
+              "type": "string"
+            },
+            {
+              "name": "workflow",
+              "type": "string"
+            },
+            {
+              "name": "noeud",
+              "type": "string"
+            },
+            {
+              "name": "message",
+              "type": "string"
+            },
+            {
+              "name": "lien",
+              "type": "string"
+            },
+            {
+              "name": "cle",
+              "type": "string"
+            },
+            {
+              "name": "alerte",
+              "type": "boolean"
+            },
+            {
+              "name": "duree_min",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "name": "Clients de démo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [\n  { json: { client: 'Chêne & Cie (démo)', url: 'http://localhost:5678/healthz', actif: true, etat: 'ok', echecs: 0, contact: 'gerant@chene-et-cie.demo', formule: 'Pro' } },\n  { json: { client: 'Client test hors ligne', url: 'http://host.docker.internal:59999/healthz', actif: true, etat: 'ok', echecs: 0, contact: '', formule: 'Essentiel' } },\n];"
+      }
+    },
+    {
+      "name": "Ajouter les clients",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        660
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_clients"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Tâches de démo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        840
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [\n  { json: { client: 'Chêne & Cie (démo)', tache: 'relances_quotidiennes', frequence_min: 1440, actif: true, en_retard: false, dernier_signal: new Date().toISOString() } },\n  { json: { client: 'Chêne & Cie (démo)', tache: 'synchro_crm_horaire', frequence_min: 60, actif: true, en_retard: false, dernier_signal: new Date(Date.now() - 3 * 3600000).toISOString() } },\n];"
+      }
+    },
+    {
+      "name": "Ajouter les tâches",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        840
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_controles"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Toutes les 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Clients supervisés",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tâches surveillées",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clients supervisés": {
+      "main": [
+        [
+          {
+            "node": "Instances à vérifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instances à vérifier": {
+      "main": [
+        [
+          {
+            "node": "Tester l'instance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tester l'instance": {
+      "main": [
+        [
+          {
+            "node": "Évaluer l'état",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Évaluer l'état": {
+      "main": [
+        [
+          {
+            "node": "Mettre à jour l'état",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mettre à jour l'état": {
+      "main": [
+        [
+          {
+            "node": "Changement d'état ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Changement d'état ?": {
+      "main": [
+        [
+          {
+            "node": "Préparer l'incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer l'incident": {
+      "main": [
+        [
+          {
+            "node": "Journaliser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journaliser": {
+      "main": [
+        [
+          {
+            "node": "Rédiger l'alerte disponibilité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger l'alerte disponibilité": {
+      "main": [
+        [
+          {
+            "node": "Envoyer l'alerte disponibilité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tâches surveillées": {
+      "main": [
+        [
+          {
+            "node": "Tâches en retard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tâches en retard": {
+      "main": [
+        [
+          {
+            "node": "Marquer en retard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marquer en retard": {
+      "main": [
+        [
+          {
+            "node": "Préparer l'incident retard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer l'incident retard": {
+      "main": [
+        [
+          {
+            "node": "Journaliser le retard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journaliser le retard": {
+      "main": [
+        [
+          {
+            "node": "Rédiger l'alerte retard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger l'alerte retard": {
+      "main": [
+        [
+          {
+            "node": "Envoyer l'alerte retard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialiser la supervision": {
+      "main": [
+        [
+          {
+            "node": "Table clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table clients": {
+      "main": [
+        [
+          {
+            "node": "Table tâches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table tâches": {
+      "main": [
+        [
+          {
+            "node": "Table incidents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table incidents": {
+      "main": [
+        [
+          {
+            "node": "Clients de démo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tâches de démo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clients de démo": {
+      "main": [
+        [
+          {
+            "node": "Ajouter les clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tâches de démo": {
+      "main": [
+        [
+          {
+            "node": "Ajouter les tâches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

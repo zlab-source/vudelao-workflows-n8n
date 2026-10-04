@@ -1,0 +1,76 @@
+{
+  "name": "Modèle client · Signalement des erreurs vers la supervision",
+  "nodes": [
+    {
+      "name": "Note 59",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -340
+      ],
+      "parameters": {
+        "content": "## 📡 À installer sur l'instance de chaque client\n1. Importer ce workflow et renseigner le **nom du client** dans le nœud d'envoi.\n2. Créer l'identifiant « Clé de supervision » (même clé que sur l'instance centrale).\n3. Dans chaque workflow du client : **Settings → Error workflow → ce workflow**.\n\nPour une tâche planifiée importante, ajouter en parallèle de son déclencheur un nœud HTTP qui envoie `{client, tache}` à `/webhook/supervision/ping`.",
+        "width": 560,
+        "height": 300,
+        "color": 5
+      }
+    },
+    {
+      "name": "Erreur dans un workflow",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Signaler à la supervision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/supervision/erreur",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ client: 'Chêne & Cie (démo)', workflow_nom: $json.workflow.name, workflow_id: $json.workflow.id, execution_id: $json.execution?.id, execution_url: $json.execution?.url, noeud: $json.execution?.lastNodeExecuted, message: $json.execution?.error?.message, mode: $json.execution?.mode }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Clé de supervision (en-tête X-Supervision-Key)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Erreur dans un workflow": {
+      "main": [
+        [
+          {
+            "node": "Signaler à la supervision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

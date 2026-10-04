@@ -1,0 +1,378 @@
+{
+  "name": "Démo 3 · Assistant IA qui répond à partir des documents de l'entreprise (RAG local)",
+  "nodes": [
+    {
+      "name": "Note 34",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -440
+      ],
+      "parameters": {
+        "content": "## 💬 Assistant IA sur les documents de l'entreprise (RAG)\n**Problème :** les mêmes questions reviennent sans cesse (garanties, délais, acomptes, entretien), et la réponse est dans des PDF que personne ne relit.\n\n**Solution :**\n1. **Ajout de documents** : on dépose des PDF, Word ou textes. Ils sont découpés, vectorisés et indexés dans Qdrant.\n2. **Chat** : l'assistant cherche dans ces documents et répond en **citant sa source**. S'il ne sait pas, il le dit.\n\n**100 % local :** Ollama (Qwen 3.6 et nomic-embed-text) et Qdrant. Aucune donnée ne quitte l'entreprise, ce qui simplifie la conformité RGPD.\n\n*Documents d'une entreprise fictive « Chêne & Cie ».*",
+        "width": 600,
+        "height": 400,
+        "color": 5
+      }
+    },
+    {
+      "name": "Ajouter des documents",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        80
+      ],
+      "parameters": {
+        "formTitle": "Ajouter des documents à la base de connaissances",
+        "formDescription": "PDF, Word, texte ou Markdown. Les documents sont indexés localement.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Documents",
+              "fieldName": "documents",
+              "fieldType": "file",
+              "requiredField": true,
+              "multipleFiles": true,
+              "acceptFileTypes": ".pdf,.docx,.txt,.md"
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {
+          "buttonLabel": "Indexer"
+        }
+      }
+    },
+    {
+      "name": "Un élément par fichier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Sépare les fichiers envoyés ensemble pour que chaque passage garde le nom de son document source.\nconst out = [];\nfor (const item of $input.all())\n  for (const b of Object.values(item.binary ?? {})) out.push({ json: { fileName: b.fileName }, binary: { data: b } });\nreturn out;"
+      }
+    },
+    {
+      "name": "Indexer dans Qdrant",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        520,
+        80
+      ],
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "demo_chene_et_cie"
+        },
+        "embeddingBatchSize": 50,
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "name": "Qdrant local"
+        }
+      }
+    },
+    {
+      "name": "Embeddings (nomic, local)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        460,
+        320
+      ],
+      "parameters": {
+        "model": "nomic-embed-text:latest"
+      },
+      "credentials": {
+        "ollamaApi": {
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "name": "Lire les fichiers",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        320
+      ],
+      "parameters": {
+        "dataType": "binary",
+        "binaryMode": "allInputData",
+        "loader": "auto",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "source",
+                "value": "={{ $json.fileName }}"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Découpage en passages",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        640,
+        520
+      ],
+      "parameters": {
+        "chunkSize": 800,
+        "chunkOverlap": 120,
+        "options": {
+          "splitCode": "markdown"
+        }
+      }
+    },
+    {
+      "name": "Question d'un client",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        820
+      ],
+      "parameters": {
+        "public": true,
+        "mode": "hostedChat",
+        "authentication": "none",
+        "initialMessages": "Bonjour 👋\nJe suis l'assistant de Chêne & Cie. Posez-moi vos questions sur nos garanties, délais, acomptes ou l'entretien de vos menuiseries.",
+        "options": {
+          "title": "Chêne & Cie · assistant",
+          "subtitle": "Démo : réponses tirées de nos documents",
+          "inputPlaceholder": "Votre question…",
+          "responseMode": "lastNode"
+        }
+      }
+    },
+    {
+      "name": "Assistant IA",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        300,
+        820
+      ],
+      "parameters": {
+        "promptType": "auto",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "Tu es l'assistant de la menuiserie Chêne & Cie (entreprise fictive de démonstration). Tu réponds aux questions des clients et des salariés.\nRègles :\n- Cherche TOUJOURS dans la base documentaire avec l'outil « documents_entreprise » avant de répondre.\n- Réponds uniquement à partir des extraits trouvés. Si l'information n'y figure pas, dis-le simplement et propose de contacter l'atelier au 05 00 00 00 00.\n- Cite le nom du fichier source entre parenthèses à la fin de la réponse, uniquement si la réponse vient d'un document.\n- Réponses courtes, en français, vouvoiement.",
+          "maxIterations": 5,
+          "enableStreaming": false
+        }
+      }
+    },
+    {
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        180,
+        1060
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.1,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "name": "Mémoire de la conversation",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        340,
+        1060
+      ],
+      "parameters": {
+        "sessionIdType": "fromInput",
+        "contextWindowLength": 8
+      }
+    },
+    {
+      "name": "Base documentaire",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [
+        520,
+        1060
+      ],
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "documents_entreprise : recherche dans les documents de Chêne & Cie (CGV, garanties, délais, tarifs, entretien). Utilise-la pour toute question.",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "demo_chene_et_cie"
+        },
+        "topK": 5,
+        "includeDocumentMetadata": true,
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "name": "Qdrant local"
+        }
+      }
+    },
+    {
+      "name": "Embeddings (nomic, local) ",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        560,
+        1260
+      ],
+      "parameters": {
+        "model": "nomic-embed-text:latest"
+      },
+      "credentials": {
+        "ollamaApi": {
+          "name": "Ollama local"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Ajouter des documents": {
+      "main": [
+        [
+          {
+            "node": "Un élément par fichier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Un élément par fichier": {
+      "main": [
+        [
+          {
+            "node": "Indexer dans Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings (nomic, local)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Indexer dans Qdrant",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire les fichiers": {
+      "ai_document": [
+        [
+          {
+            "node": "Indexer dans Qdrant",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Découpage en passages": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Lire les fichiers",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Question d'un client": {
+      "main": [
+        [
+          {
+            "node": "Assistant IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assistant IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mémoire de la conversation": {
+      "ai_memory": [
+        [
+          {
+            "node": "Assistant IA",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base documentaire": {
+      "ai_tool": [
+        [
+          {
+            "node": "Assistant IA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings (nomic, local) ": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Base documentaire",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  }
+}

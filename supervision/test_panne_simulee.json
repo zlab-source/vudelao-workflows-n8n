@@ -1,0 +1,65 @@
+{
+  "name": "Test · panne simulée (client démo)",
+  "nodes": [
+    {
+      "name": "Note 63",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -200
+      ],
+      "parameters": {
+        "content": "Appeler `/webhook/test/panne` déclenche une vraie erreur de production, remontée par le *Error workflow* vers la supervision.",
+        "width": 440,
+        "height": 140,
+        "color": 7
+      }
+    },
+    {
+      "name": "Appel de test",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "test/panne",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "name": "Appeler l'API de facturation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Simule une panne réaliste d'un service externe.\nthrow new Error(\"Délai dépassé : l'API de facturation n'a pas répondu en 30 s (simulation)\");"
+      }
+    }
+  ],
+  "connections": {
+    "Appel de test": {
+      "main": [
+        [
+          {
+            "node": "Appeler l'API de facturation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  }
+}

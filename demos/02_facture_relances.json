@@ -1,0 +1,692 @@
+{
+  "name": "Démo 2 · Devis accepté → facture → relances automatiques",
+  "nodes": [
+    {
+      "name": "Note 14",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -420
+      ],
+      "parameters": {
+        "content": "## 🧾 Devis accepté → facture → relances\n**Problème :** factures envoyées en retard, relances oubliées, trésorerie tendue.\n\n**Solution :**\n1. Dès qu'un devis est accepté, la facture est calculée, enregistrée et envoyée au client.\n2. Chaque matin, les factures en retard sont relancées automatiquement : **J+1** courtois, **J+15** ferme, **J+30** dernier rappel. Le texte est rédigé par une IA locale.\n3. Un formulaire permet de marquer une facture payée pour arrêter les relances.\n\n*En production : CRM ou outil de devis (Axonaut, Pennylane, HubSpot…) à la place des formulaires. Entreprise fictive « Chêne & Cie ».*",
+        "width": 560,
+        "height": 380,
+        "color": 5
+      }
+    },
+    {
+      "name": "Note 16",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        700
+      ],
+      "parameters": {
+        "content": "### ⚙️ À lancer une seule fois\nCrée la table « factures_demo ».",
+        "width": 300,
+        "height": 140,
+        "color": 7
+      }
+    },
+    {
+      "name": "Initialiser la démo",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        880
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Créer la table des factures",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        880
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "factures_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "numero",
+              "type": "string"
+            },
+            {
+              "name": "client",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "prestation",
+              "type": "string"
+            },
+            {
+              "name": "montant_ht",
+              "type": "number"
+            },
+            {
+              "name": "taux_tva",
+              "type": "number"
+            },
+            {
+              "name": "montant_tva",
+              "type": "number"
+            },
+            {
+              "name": "montant_ttc",
+              "type": "number"
+            },
+            {
+              "name": "date_facture",
+              "type": "date"
+            },
+            {
+              "name": "echeance",
+              "type": "date"
+            },
+            {
+              "name": "statut",
+              "type": "string"
+            },
+            {
+              "name": "relances",
+              "type": "number"
+            },
+            {
+              "name": "derniere_relance",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "name": "Devis accepté",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        80
+      ],
+      "parameters": {
+        "formTitle": "Devis accepté → émettre la facture",
+        "formDescription": "Démo : en production, ce déclencheur est le passage du devis à « accepté » dans votre CRM ou votre outil de devis.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Client",
+              "fieldName": "client",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email du client",
+              "fieldName": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Prestation",
+              "fieldName": "prestation",
+              "fieldType": "textarea",
+              "requiredField": true,
+              "placeholder": "Fourniture et pose d'un escalier en chêne"
+            },
+            {
+              "fieldLabel": "Montant HT (€)",
+              "fieldName": "montant_ht",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Taux de TVA",
+              "fieldName": "tva",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "20"
+                  },
+                  {
+                    "option": "10"
+                  },
+                  {
+                    "option": "5.5"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Délai de paiement (jours)",
+              "fieldName": "delai_jours",
+              "fieldType": "number",
+              "defaultValue": "30"
+            },
+            {
+              "fieldLabel": "Date de facture (laisser vide = aujourd'hui ; antidater pour tester les relances)",
+              "fieldName": "date_facture",
+              "fieldType": "date"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Émettre la facture",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Facture émise et envoyée. Voir la boîte Mailpit (http://localhost:8025)."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Calculer la facture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Calcule la facture à partir du devis accepté.\nconst f = $json;\nconst ht = Math.round(Number(f.montant_ht) * 100) / 100;\nconst taux = Number(String(f.tva).replace(',', '.').replace('%', ''));\nconst tva = Math.round(ht * taux) / 100;\nconst ttc = Math.round((ht + tva) * 100) / 100;\nconst date = f.date_facture ? new Date(f.date_facture) : new Date();\nconst echeance = new Date(date); echeance.setDate(echeance.getDate() + Number(f.delai_jours || 30));\nconst numero = 'FAC-' + date.getFullYear() + '-' + String(Date.now()).slice(-5);\nreturn {\n  numero, client: f.client, email: f.email, prestation: f.prestation,\n  montant_ht: ht, taux_tva: taux, montant_tva: tva, montant_ttc: ttc,\n  date_facture: date.toISOString(), echeance: echeance.toISOString(),\n  statut: 'en_attente', relances: 0,\n};"
+      }
+    },
+    {
+      "name": "Enregistrer la facture",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        80
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "factures_demo"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Envoyer la facture au client",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        80
+      ],
+      "parameters": {
+        "fromEmail": "facturation@chene-et-cie.demo",
+        "toEmail": "={{ $('Calculer la facture').item.json.email }}",
+        "subject": "=Votre facture {{ $('Calculer la facture').item.json.numero }} · Chêne & Cie",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;color:#23303B\">\n<h2 style=\"color:#4A5B6B;margin-bottom:0\">Chêne & Cie</h2><p style=\"margin-top:2px;color:#777\">Menuiserie · entreprise fictive de démonstration</p>\n<h3>Facture {{ $('Calculer la facture').item.json.numero }}</h3>\n<p>Bonjour {{ $('Calculer la facture').item.json.client }},<br>Merci pour votre confiance. Voici la facture correspondant au devis que vous avez accepté.</p>\n<table style=\"border-collapse:collapse;width:100%\">\n<tr><td style=\"padding:6px;border-bottom:1px solid #ddd\">{{ $('Calculer la facture').item.json.prestation }}</td><td style=\"padding:6px;border-bottom:1px solid #ddd;text-align:right\">{{ $('Calculer la facture').item.json.montant_ht.toFixed(2) }} € HT</td></tr>\n<tr><td style=\"padding:6px\">TVA {{ $('Calculer la facture').item.json.taux_tva }} %</td><td style=\"padding:6px;text-align:right\">{{ $('Calculer la facture').item.json.montant_tva.toFixed(2) }} €</td></tr>\n<tr><td style=\"padding:6px\"><b>Total TTC</b></td><td style=\"padding:6px;text-align:right\"><b>{{ $('Calculer la facture').item.json.montant_ttc.toFixed(2) }} €</b></td></tr>\n</table>\n<p>Échéance : <b>{{ DateTime.fromISO($('Calculer la facture').item.json.echeance).setLocale('fr').toLocaleString(DateTime.DATE_FULL) }}</b>.</p>\n<p>Bien cordialement,<br>L'équipe Chêne & Cie</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "name": "Chaque matin à 9 h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        380
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Signal de vie → supervision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        560
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/supervision/ping",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ client: \"Chêne & Cie (démo)\", tache: \"relances_quotidiennes\" }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Clé de supervision (en-tête X-Supervision-Key)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Factures non payées",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        380
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "factures_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "statut",
+              "condition": "eq",
+              "keyValue": "en_attente"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "name": "Qui relancer aujourd'hui ?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Sélectionne les factures en retard et le niveau de relance à envoyer.\n// J+1 : rappel courtois · J+15 : relance ferme · J+30 : dernier rappel avant procédure.\n// Les niveaux s'enchaînent toujours dans l'ordre, avec au moins 7 jours entre deux relances.\nconst seuils = { 1: 1, 2: 15, 3: 30 };\nconst JOUR = 86400000, ECART_MIN = 7;\nconst today = new Date();\nconst out = [];\nfor (const { json: f } of $input.all()) {\n  const deja = Number(f.relances || 0);\n  const niveau = deja + 1;\n  if (niveau > 3) continue;\n  const retard = Math.floor((today - new Date(f.echeance)) / JOUR);\n  const depuisDerniere = f.derniere_relance ? Math.floor((today - new Date(f.derniere_relance)) / JOUR) : Infinity;\n  if (retard >= seuils[niveau] && depuisDerniere >= ECART_MIN) out.push({ json: { ...f, retard, niveau, deja } });\n}\nreturn out;"
+      }
+    },
+    {
+      "name": "Rédiger la relance (IA)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        720,
+        380
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Rédige le corps d'un email de relance de paiement, en français, pour la menuiserie Chêne & Cie.\nClient : {{ $json.client }}\nFacture : {{ $json.numero }} de {{ $json.montant_ttc }} € TTC\nÉchéance dépassée depuis {{ $json.retard }} jour(s).\nNiveau de relance : {{ $json.niveau }} sur 3. Relances déjà envoyées : {{ $json.deja }} (n'en mentionne aucune si ce nombre est 0).\nTon : niveau 1 = rappel courtois qui suppose un simple oubli ; niveau 2 = relance ferme et polie qui demande une date de règlement ; niveau 3 = dernier rappel avant transmission au service contentieux, factuel et sans agressivité.\nAu plus 120 mots. Pas d'objet, pas de balises, pas de coordonnées bancaires inventées. Signe « L'équipe Chêne & Cie ».",
+        "hasOutputParser": false
+      }
+    },
+    {
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.4,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "name": "Envoyer la relance",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1020,
+        380
+      ],
+      "parameters": {
+        "fromEmail": "facturation@chene-et-cie.demo",
+        "toEmail": "={{ $('Qui relancer aujourd\\'hui ?').item.json.email }}",
+        "subject": "={{ ['', 'Rappel', 'Relance', 'Dernier rappel'][$('Qui relancer aujourd\\'hui ?').item.json.niveau] }} : facture {{ $('Qui relancer aujourd\\'hui ?').item.json.numero }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;white-space:pre-wrap\">{{ $json.text }}</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "name": "Noter la relance",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1260,
+        380
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "factures_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Qui relancer aujourd\\'hui ?').item.json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "relances": "={{ $('Qui relancer aujourd\\'hui ?').item.json.niveau }}",
+            "derniere_relance": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "relances",
+              "displayName": "relances",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "derniere_relance",
+              "displayName": "derniere_relance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Facture payée",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        1120
+      ],
+      "parameters": {
+        "formTitle": "Marquer une facture comme payée",
+        "formDescription": "Arrête les relances. En production : rapprochement bancaire automatique (Qonto, Pennylane…).",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Numéro de facture",
+              "fieldName": "numero",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "FAC-2026-12345"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Valider le paiement",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Paiement enregistré, les relances sont arrêtées."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Passer au statut payée",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1120
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "factures_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "numero",
+              "condition": "eq",
+              "keyValue": "={{ $json.numero.trim() }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "statut": "payee"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Initialiser la démo": {
+      "main": [
+        [
+          {
+            "node": "Créer la table des factures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Devis accepté": {
+      "main": [
+        [
+          {
+            "node": "Calculer la facture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculer la facture": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer la facture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer la facture": {
+      "main": [
+        [
+          {
+            "node": "Envoyer la facture au client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chaque matin à 9 h": {
+      "main": [
+        [
+          {
+            "node": "Factures non payées",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Signal de vie → supervision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Factures non payées": {
+      "main": [
+        [
+          {
+            "node": "Qui relancer aujourd'hui ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qui relancer aujourd'hui ?": {
+      "main": [
+        [
+          {
+            "node": "Rédiger la relance (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Rédiger la relance (IA)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger la relance (IA)": {
+      "main": [
+        [
+          {
+            "node": "Envoyer la relance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoyer la relance": {
+      "main": [
+        [
+          {
+            "node": "Noter la relance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facture payée": {
+      "main": [
+        [
+          {
+            "node": "Passer au statut payée",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  }
+}

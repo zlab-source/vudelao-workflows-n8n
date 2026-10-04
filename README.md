@@ -1,0 +1,54 @@
+# Workflows n8n de démonstration · VudeLao
+
+Automatisations **réelles et testées**, construites pour des petites entreprises, avec une IA qui tourne en local.
+Toutes les données sont **fictives** (entreprise de démonstration « Chêne & Cie »).
+
+> Un autre regard sur vos projets · VudeLao · SG_
+
+## Contenu
+
+### `demos/` · trois automatisations prêtes à adapter
+
+| Fichier | Ce que fait le workflow |
+|---|---|
+| `01_tri_emails_ia.json` | Lit chaque email entrant, l'analyse avec une IA locale, le classe et le route vers le bon service ; archive le spam, alerte le gérant en cas d'urgence. |
+| `02_facture_relances.json` | Devis accepté → facture calculée (HT, TVA, TTC, échéance), enregistrée et envoyée. Chaque matin, relances graduées J+1, J+15, J+30 rédigées par l'IA, arrêt automatique au paiement. |
+| `03_assistant_documents_rag.json` | Indexe des documents (PDF, texte) dans Qdrant, puis répond aux questions en citant ses sources (RAG local). |
+
+### `supervision/` · surveiller les automatisations de plusieurs clients
+
+| Fichier | Rôle |
+|---|---|
+| `s1_reception_erreurs.json` | Reçoit les erreurs et les signaux de vie envoyés par les instances clientes, alerte immédiatement. |
+| `s2_controles_5_min.json` | Toutes les 5 minutes : instance hors ligne ? tâche planifiée silencieuse ? Alerte, puis message de rétablissement. |
+| `s3_rapport_mensuel.json` | Chaque mois, un rapport de maintenance par client (disponibilité, erreurs, interruptions), à relire avant envoi. |
+| `modele_client_signalement.json` | À installer chez chaque client : signale ses erreurs à la supervision. |
+| `test_panne_simulee.json` | Provoque volontairement une erreur pour tester la chaîne d'alerte. |
+
+## Pile technique
+
+- **n8n** 2.x (auto-hébergé, Docker)
+- **Ollama** en local : modèle de chat `qwen3.6`, embeddings `nomic-embed-text`
+- **Qdrant** pour la recherche dans les documents
+- Un serveur **SMTP** (Mailpit pour les tests)
+
+Aucune donnée ne quitte la machine : l'IA, l'index des documents et les emails de test restent en local.
+
+## Installation
+
+1. Importer un workflow : dans n8n, *Import from file*, ou en ligne de commande :
+   ```bash
+   n8n import:workflow --input=demos/02_facture_relances.json
+   ```
+2. Créer les identifiants attendus (les fichiers ne contiennent **que leur nom**, jamais de secret) :
+   - `Ollama local` (API Ollama)
+   - `Qdrant local` (API Qdrant)
+   - `SMTP Mailpit (démo)` (SMTP)
+   - `Clé de supervision (en-tête X-Supervision-Key)` (Header Auth), une clé longue et aléatoire, identique côté supervision et côté clients
+3. Pour la supervision, renseigner dans les réglages de chaque workflow client l'identifiant du workflow d'erreur (`À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR`).
+4. Publier les workflows. Dans n8n 2.x, un workflow d'erreur doit être publié pour être pris en compte.
+
+## Bon à savoir
+
+- Ce sont des **démonstrations** : les déclencheurs de test (formulaires) se remplacent en production par Gmail, Outlook, IMAP, un CRM ou un outil de facturation.
+- Les identifiants techniques de l'instance d'origine ont été retirés de l'export.

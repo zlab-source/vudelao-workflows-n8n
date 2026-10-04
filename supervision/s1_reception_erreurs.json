@@ -1,0 +1,547 @@
+{
+  "name": "Supervision · 1. Réception des erreurs et signaux de vie",
+  "nodes": [
+    {
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -380
+      ],
+      "parameters": {
+        "content": "## 🛰️ Supervision centralisée · réception\nChaque instance n8n cliente envoie ici :\n- **ses erreurs**, grâce au workflow « Modèle client » défini comme *Error workflow* ;\n- **un signal de vie** à chaque exécution d'une tâche planifiée importante.\n\nLes deux points d'entrée sont protégés par une clé secrète (en-tête `X-Supervision-Key`).\nAnti-spam : une seule alerte par erreur identique toutes les 30 min, mais **tout est journalisé** dans `sup_incidents` pour le rapport mensuel.",
+        "width": 620,
+        "height": 320,
+        "color": 5
+      }
+    },
+    {
+      "name": "Erreur signalée",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        80
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "supervision/erreur",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Clé de supervision (en-tête X-Supervision-Key)"
+        }
+      }
+    },
+    {
+      "name": "Normaliser l'incident",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Transforme le signalement envoyé par l'instance du client en ligne d'incident.\nconst b = $json.body ?? {};\nconst client = String(b.client || 'Client inconnu').slice(0, 120);\nconst workflow = String(b.workflow_nom || b.workflow_id || 'Workflow inconnu').slice(0, 200);\nconst noeud = String(b.noeud || '').slice(0, 200);\nreturn {\n  horodatage: new Date().toISOString(), client, type: 'erreur', workflow, noeud,\n  message: String(b.message || 'Erreur sans message').slice(0, 1000),\n  lien: String(b.execution_url || ''), cle: [client, workflow, noeud].join(' | '), alerte: false, duree_min: 0,\n};"
+      }
+    },
+    {
+      "name": "Dernier incident identique",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        80
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_incidents"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cle",
+              "condition": "eq",
+              "keyValue": "={{ $json.cle }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "createdAt",
+        "orderByDirection": "DESC"
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Doit-on alerter ?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Une seule alerte par erreur identique (même client, workflow et nœud) toutes les 30 minutes.\nconst incident = $('Normaliser l\\'incident').item.json;\nconst dernier = $json.horodatage ? new Date($json.horodatage) : null;\nconst recent = dernier && (Date.now() - dernier.getTime()) < 30 * 60 * 1000;\nreturn { ...incident, alerte: !recent };"
+      }
+    },
+    {
+      "name": "Journaliser l'incident",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        80
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_incidents"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Alerte à envoyer ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        80
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-9000-000000000008",
+              "leftValue": "={{ $('Doit-on alerter ?').item.json.alerte }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Rédiger l'alerte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst carte = (couleur, titre, lignes) => `<div style=\"font-family:Arial,sans-serif;max-width:640px;border-left:5px solid ${couleur};padding:6px 16px\">\n<h2 style=\"margin:4px 0 10px;color:#23303B\">${titre}</h2>${lignes.filter(Boolean).map(([k, v]) => `<p style=\"margin:4px 0\"><b>${k} :</b> ${v}</p>`).join('')}\n<p style=\"color:#8FA3B5;font-size:12px;margin-top:14px\">Supervision n8n · ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}</p></div>`;\nconst i = $('Doit-on alerter ?').item.json;\nreturn { sujet: '🔴 Erreur · ' + i.client + ' · ' + i.workflow, html: carte('#E5484D', 'Erreur dans un workflow client', [\n  ['Client', esc(i.client)], ['Workflow', esc(i.workflow)], i.noeud && ['Nœud en échec', esc(i.noeud)],\n  ['Message', '<code>' + esc(i.message) + '</code>'], i.lien && ['Exécution', '<a href=\"' + esc(i.lien) + '\">ouvrir dans n8n</a>'],\n  ['Suite', 'Alerte envoyée une seule fois pour 30 minutes si l\\'erreur se répète.'] ]) };"
+      }
+    },
+    {
+      "name": "Envoyer l'alerte erreur",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "supervision@supervision.demo",
+        "toEmail": "alertes@supervision.demo",
+        "subject": "={{ $json.sujet }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "name": "Signal de vie",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        420
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "supervision/ping",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Clé de supervision (en-tête X-Supervision-Key)"
+        }
+      }
+    },
+    {
+      "name": "Trouver la tâche",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        420
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_controles"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "client",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.client }}"
+            },
+            {
+              "keyName": "tache",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.tache }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "name": "Préparer la mise à jour",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Signal de vie reçu : met à jour la tâche et détecte un retour à la normale.\nconst b = $('Signal de vie').item.json.body ?? {};\nconst ligne = $json;\nif (!ligne.id) return { inconnu: true, client: b.client, tache: b.tache };\nreturn { id: ligne.id, client: ligne.client, tache: ligne.tache, etait_en_retard: ligne.en_retard === true, maintenant: new Date().toISOString() };"
+      }
+    },
+    {
+      "name": "Enregistrer le signal",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        420
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "sup_controles"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "dernier_signal": "={{ $json.maintenant }}",
+            "en_retard": false
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "dernier_signal",
+              "displayName": "dernier_signal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "en_retard",
+              "displayName": "en_retard",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Était en retard ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-9000-000000000016",
+              "leftValue": "={{ $('Préparer la mise à jour').item.json.etait_en_retard }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Rédiger l'avis de reprise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        340
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst carte = (couleur, titre, lignes) => `<div style=\"font-family:Arial,sans-serif;max-width:640px;border-left:5px solid ${couleur};padding:6px 16px\">\n<h2 style=\"margin:4px 0 10px;color:#23303B\">${titre}</h2>${lignes.filter(Boolean).map(([k, v]) => `<p style=\"margin:4px 0\"><b>${k} :</b> ${v}</p>`).join('')}\n<p style=\"color:#8FA3B5;font-size:12px;margin-top:14px\">Supervision n8n · ${new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}</p></div>`;\nconst t = $('Préparer la mise à jour').item.json;\nreturn { sujet: '🟢 Tâche de nouveau active · ' + t.client + ' · ' + t.tache, html: carte('#30A46C', 'Tâche planifiée de nouveau active', [\n  ['Client', esc(t.client)], ['Tâche', esc(t.tache)], ['Signal reçu', new Date(t.maintenant).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })] ]) };"
+      }
+    },
+    {
+      "name": "Envoyer l'avis de reprise",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        340
+      ],
+      "parameters": {
+        "fromEmail": "supervision@supervision.demo",
+        "toEmail": "alertes@supervision.demo",
+        "subject": "={{ $json.sujet }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Erreur signalée": {
+      "main": [
+        [
+          {
+            "node": "Normaliser l'incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser l'incident": {
+      "main": [
+        [
+          {
+            "node": "Dernier incident identique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dernier incident identique": {
+      "main": [
+        [
+          {
+            "node": "Doit-on alerter ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doit-on alerter ?": {
+      "main": [
+        [
+          {
+            "node": "Journaliser l'incident",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Journaliser l'incident": {
+      "main": [
+        [
+          {
+            "node": "Alerte à envoyer ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerte à envoyer ?": {
+      "main": [
+        [
+          {
+            "node": "Rédiger l'alerte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger l'alerte": {
+      "main": [
+        [
+          {
+            "node": "Envoyer l'alerte erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signal de vie": {
+      "main": [
+        [
+          {
+            "node": "Trouver la tâche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trouver la tâche": {
+      "main": [
+        [
+          {
+            "node": "Préparer la mise à jour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la mise à jour": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer le signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer le signal": {
+      "main": [
+        [
+          {
+            "node": "Était en retard ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Était en retard ?": {
+      "main": [
+        [
+          {
+            "node": "Rédiger l'avis de reprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger l'avis de reprise": {
+      "main": [
+        [
+          {
+            "node": "Envoyer l'avis de reprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
