@@ -52,3 +52,14 @@ Aucune donnée ne quitte la machine : l'IA, l'index des documents et les emails 
 
 - Ce sont des **démonstrations** : les déclencheurs de test (formulaires) se remplacent en production par Gmail, Outlook, IMAP, un CRM ou un outil de facturation.
 - Les identifiants techniques de l'instance d'origine ont été retirés de l'export.
+
+## Licence
+
+Ces workflows sont publiés sous **[PolyForm Noncommercial 1.0.0](LICENSE.md)**.
+
+- **Autorisé** : les consulter, les installer, les tester, les modifier et les partager pour un usage **non commercial** (apprentissage, test, projet personnel, recherche, association…), en conservant la licence et la mention ci-dessous.
+- **Usage commercial** (dans une entreprise, pour un client, revente) : contactez VudeLao pour obtenir le modèle prêt à l'emploi ou une installation clé en main.
+
+Required Notice: Copyright 2026 VudeLao (https://github.com/zlab-source/vudelao-workflows-n8n)
+
+*Résumé informatif en français : seul le texte anglais de la licence fait foi.*
