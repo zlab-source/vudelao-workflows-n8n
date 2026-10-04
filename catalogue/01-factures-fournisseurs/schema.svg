@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="300" rx="12" fill="#F5F2EA"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#315C5A"/></marker></defs>
+  <g font-size="13" fill="#1D2422" text-anchor="middle">
+    <g>
+      <rect x="20" y="105" width="120" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/>
+      <text x="80" y="135" font-weight="bold">Facture PDF</text><text x="80" y="155" fill="#5E6662" font-size="11">formulaire ou mail</text>
+    </g>
+    <g>
+      <rect x="170" y="105" width="120" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/>
+      <text x="230" y="135" font-weight="bold">Texte extrait</text><text x="230" y="155" fill="#5E6662" font-size="11">Extract From File</text>
+    </g>
+    <g>
+      <rect x="320" y="95" width="140" height="90" rx="8" fill="#315C5A"/>
+      <text x="390" y="128" font-weight="bold" fill="#fff">Lecture IA</text><text x="390" y="148" fill="#E5DED3" font-size="11">Qwen 3.6 · Ollama</text><text x="390" y="165" fill="#E5DED3" font-size="11">en local</text>
+    </g>
+    <g>
+      <rect x="490" y="95" width="160" height="90" rx="8" fill="#fff" stroke="#D8D2C5"/>
+      <text x="570" y="122" font-weight="bold">Contrôles</text><text x="570" y="141" fill="#5E6662" font-size="11">HT + TVA = TTC · lignes</text><text x="570" y="157" fill="#5E6662" font-size="11">SIRET (Luhn) · dates</text><text x="570" y="173" fill="#5E6662" font-size="11">doublon · écriture</text>
+    </g>
+    <g>
+      <rect x="690" y="40" width="250" height="60" rx="8" fill="#fff" stroke="#D8D2C5"/>
+      <text x="815" y="66" font-weight="bold">Nouvelle → enregistrée</text><text x="815" y="85" fill="#5E6662" font-size="11">table + récapitulatif à la compta</text>
+    </g>
+    <g>
+      <rect x="690" y="180" width="250" height="60" rx="8" fill="#fff" stroke="#C47A61"/>
+      <text x="815" y="206" font-weight="bold">Doublon → bloquée</text><text x="815" y="225" fill="#5E6662" font-size="11">alerte, rien n'est enregistré</text>
+    </g>
+  </g>
+  <g stroke="#315C5A" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M140 140H166"/><path d="M290 140H316"/><path d="M460 140H486"/>
+    <path d="M650 125C670 125 668 70 686 70"/><path d="M650 155C670 155 668 210 686 210"/>
+  </g>
+  <text x="480" y="280" font-size="11" fill="#5E6662" text-anchor="middle">Aucune donnée ne quitte le serveur : extraction, IA et contrôles tournent sur votre instance n8n.</text>
+</svg>

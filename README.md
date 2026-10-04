@@ -15,6 +15,12 @@ Toutes les données sont **fictives** (entreprise de démonstration « Chêne & 
 | `02_facture_relances.json` | Devis accepté → facture calculée (HT, TVA, TTC, échéance), enregistrée et envoyée. Chaque matin, relances graduées J+1, J+15, J+30 rédigées par l'IA, arrêt automatique au paiement. |
 | `03_assistant_documents_rag.json` | Indexe des documents (PDF, texte) dans Qdrant, puis répond aux questions en citant ses sources (RAG local). |
 
+### `catalogue/` · workflows avancés (démos gratuites, versions pro sur demande)
+
+| Dossier | Ce que fait le workflow |
+|---|---|
+| [`01-factures-fournisseurs`](catalogue/01-factures-fournisseurs/) | Facture PDF lue par une IA locale, contrôles (montants, SIRET, dates, doublons), écriture comptable proposée, récapitulatif à la comptabilité. |
+
 ### `supervision/` · surveiller les automatisations de plusieurs clients
 
 | Fichier | Rôle |
