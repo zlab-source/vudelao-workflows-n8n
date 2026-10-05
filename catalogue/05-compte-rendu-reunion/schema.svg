@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="300" rx="12" fill="#F5F2EA"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#315C5A"/></marker></defs>
+  <g font-size="13" fill="#1D2422" text-anchor="middle">
+    <rect x="20" y="70" width="130" height="90" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="85" y="102" font-weight="bold">Enregistrement</text><text x="85" y="121" fill="#5E6662" font-size="11">audio ou vidéo</text><text x="85" y="138" fill="#5E6662" font-size="11">+ participants, date</text>
+
+    <rect x="180" y="70" width="150" height="90" rx="8" fill="#315C5A"/>
+    <text x="255" y="102" font-weight="bold" fill="#fff">Transcription</text><text x="255" y="121" fill="#E5DED3" font-size="11">Whisper, en local</text><text x="255" y="138" fill="#E5DED3" font-size="11">noms + mots du métier</text>
+
+    <rect x="360" y="70" width="170" height="90" rx="8" fill="#315C5A"/>
+    <text x="445" y="98" font-weight="bold" fill="#fff">Compte rendu IA</text><text x="445" y="117" fill="#E5DED3" font-size="11">résumé · décisions</text><text x="445" y="133" fill="#E5DED3" font-size="11">tâches · qui · pour quand</text><text x="445" y="149" fill="#E5DED3" font-size="11">questions ouvertes</text>
+
+    <rect x="560" y="70" width="170" height="90" rx="8" fill="#fff" stroke="#C47A61" stroke-width="1.5"/>
+    <text x="645" y="98" font-weight="bold">Contrôles</text><text x="645" y="117" fill="#5E6662" font-size="11">responsable connu ou</text><text x="645" y="133" fill="#5E6662" font-size="11">« à confirmer » · échéance</text><text x="645" y="149" fill="#5E6662" font-size="11">valide · repère audio</text>
+
+    <rect x="760" y="40" width="180" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="850" y="68" font-weight="bold">Email aux participants</text><text x="850" y="87" fill="#5E6662" font-size="11">compte rendu · .ics · transcription</text>
+    <rect x="760" y="125" width="180" height="60" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="850" y="151" font-weight="bold">Suivi des tâches</text><text x="850" y="169" fill="#5E6662" font-size="11">table n8n, statut « à faire »</text>
+  </g>
+  <g stroke="#315C5A" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M150 115H176"/><path d="M330 115H356"/><path d="M530 115H556"/>
+    <path d="M730 105C745 105 742 75 756 75"/><path d="M730 125C745 125 742 155 756 155"/>
+  </g>
+  <text x="480" y="240" font-size="11" fill="#5E6662" text-anchor="middle">Les échéances dites à l'oral (« avant mercredi », « lundi prochain ») deviennent des dates, prêtes à ajouter à l'agenda.</text>
+  <text x="480" y="262" font-size="11" fill="#5E6662" text-anchor="middle">Tout tourne sur votre machine : l'enregistrement n'est envoyé à aucun service extérieur.</text>
+</svg>

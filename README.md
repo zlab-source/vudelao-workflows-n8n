@@ -23,6 +23,7 @@ Toutes les données sont **fictives** (entreprise de démonstration « Chêne & 
 | [`02-agent-mcp-validation`](catalogue/02-agent-mcp-validation/) | Agent IA de service client : lit les données via un serveur MCP, n'accorde un geste commercial qu'après accord du gérant par email. |
 | [`03-video-campagne`](catalogue/03-video-campagne/) | Une vidéo transcrite en local (Whisper) devient sous-titres, article de blog, 3 posts LinkedIn, post court, newsletter et chapitres YouTube, avec contrôles automatiques. |
 | [`04-rag-avance`](catalogue/04-rag-avance/) | Assistant documentaire : recherche hybride (sens + mots-clés), reclassement par IA, réponses sourcées et citations vérifiées, mise à jour automatique des documents modifiés. |
+| [`05-compte-rendu-reunion`](catalogue/05-compte-rendu-reunion/) | Un enregistrement de réunion transcrit en local devient un compte rendu : décisions, tâches avec responsable et échéance, fichier agenda (.ics), envoyé à tous les participants. |
 
 ### `supervision/` · surveiller les automatisations de plusieurs clients
 

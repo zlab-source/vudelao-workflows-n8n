@@ -1,0 +1,512 @@
+{
+  "id": "cat05CompteRendu",
+  "name": "Catalogue 05 · Compte rendu de réunion automatique (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8005-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -560
+      ],
+      "parameters": {
+        "content": "## 🎙️ Compte rendu de réunion automatique\n**Problème :** après une réunion, personne n'a le temps d'écrire le compte rendu. Les décisions s'oublient, les tâches n'ont ni responsable ni date.\n\n**Solution :**\n1. On dépose l'enregistrement (audio ou vidéo, ex. dictaphone, Teams, Zoom, Meet).\n2. **Whisper**, en local, le transcrit ; les noms des participants l'aident à bien les écrire.\n3. Une **IA locale** rédige : résumé, décisions, tâches avec responsable et échéance, questions ouvertes, prochaine réunion.\n4. **Contrôles** : responsable connu, échéance valable et calculée depuis la date de la réunion, repère dans l'enregistrement.\n5. Email à tous les participants, avec le compte rendu, un fichier **agenda (.ics)** des échéances et la transcription.\n6. Les tâches sont enregistrées pour le suivi.\n\n*Démo sur données fictives. La version pro ajoute la récupération automatique des enregistrements Teams, Zoom ou Meet, l'identification des voix, les relances avant échéance et l'envoi des tâches vers Trello, Notion ou Asana.*",
+        "width": 680,
+        "height": 500,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000002",
+      "name": "Déposer l'enregistrement",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Compte rendu de réunion",
+        "formDescription": "Démo : déposez l'enregistrement d'une réunion. Le compte rendu part par email aux participants.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Enregistrement (audio ou vidéo)",
+              "fieldName": "enregistrement",
+              "fieldType": "file",
+              "requiredField": true,
+              "multipleFiles": false,
+              "acceptFileTypes": ".m4a,.mp3,.wav,.mp4,.mov,.webm,.ogg"
+            },
+            {
+              "fieldLabel": "Titre",
+              "fieldName": "titre",
+              "placeholder": "Réunion d'équipe du lundi"
+            },
+            {
+              "fieldLabel": "Date de la réunion",
+              "fieldName": "date",
+              "fieldType": "date",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Participants (une ligne par personne : Nom, rôle, email)",
+              "fieldName": "participants",
+              "fieldType": "textarea",
+              "requiredField": true,
+              "placeholder": "Marc Lefèvre, gérant, marc@exemple.fr"
+            },
+            {
+              "fieldLabel": "Mots du métier (facultatif, aide la transcription)",
+              "fieldName": "vocabulaire",
+              "placeholder": "scierie, cotes, pose, quart tournant"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Lancer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Enregistrement reçu. Le compte rendu arrive par email d'ici quelques minutes (Mailpit : http://localhost:8025)."
+            }
+          }
+        }
+      },
+      "webhookId": "5d8e3f10-7b2c-4d3e-8f4a-ca7a00000007"
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000003",
+      "name": "Créer la table si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "taches_reunions_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "reunion",
+              "type": "string"
+            },
+            {
+              "name": "date_reunion",
+              "type": "date"
+            },
+            {
+              "name": "tache",
+              "type": "string"
+            },
+            {
+              "name": "responsable",
+              "type": "string"
+            },
+            {
+              "name": "echeance",
+              "type": "date"
+            },
+            {
+              "name": "statut",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000004",
+      "name": "Préparer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Fichier, date et participants (une ligne par personne : Nom, rôle, email).\nconst src = $('Déposer l\\'enregistrement').first();\nconst fichier = Object.values(src.binary ?? {})[0];\nif (!fichier) throw new Error('Aucun fichier reçu.');\nconst participants = String(src.json.participants ?? '').split('\\n').map(l => l.split(',').map(s => s.trim())).filter(p => p[0])\n  .map(([nom, role = '', email = '']) => ({ nom, prenom: nom.split(' ')[0], role, email: /@/.test(email) ? email : '' }));\nconst date = src.json.date || $now.toISODate();\nreturn [{ json: { titre: src.json.titre || 'Réunion', date, participants, vocabulaire: String(src.json.vocabulaire ?? '').trim(), nom_fichier: fichier.fileName }, binary: { data: fichier } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000005",
+      "name": "Transcrire (Whisper local)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/v1/audio/transcriptions",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "fr"
+            },
+            {
+              "name": "prompt",
+              "value": "=Réunion d'équipe. Participants : {{ $json.participants.map(p => p.nom).join(', ') }}.{{ $json.vocabulaire ? ' Vocabulaire : ' + $json.vocabulaire + '.' : '' }}"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 3600000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000006",
+      "name": "Transcription repérée",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Transcription repérée [MM:SS] pour l'IA, et texte brut pour l'archive.\nconst t = $input.first().json;\nconst segs = t.segments ?? [];\nif (!segs.length) throw new Error('Transcription vide : l\\'enregistrement contient-il de la parole ?');\nconst mmss = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');\nreturn [{ json: { texte: t.text, reperee: segs.map(s => `[${mmss(s.start)}] ${s.text.trim()}`).join('\\n'), duree_s: Math.round(segs[segs.length - 1].end), duree: mmss(segs[segs.length - 1].end), temps_transcription_s: t.temps_de_calcul_s ?? null } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000007",
+      "name": "Rédiger le compte rendu",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "text": "=Réunion : {{ $('Préparer').first().json.titre }}\nVocabulaire du métier : {{ $('Préparer').first().json.vocabulaire || 'non fourni' }}\nDate de la réunion : {{ DateTime.fromISO($('Préparer').first().json.date).setLocale('fr').toFormat('cccc d LLLL yyyy') }} ({{ $('Préparer').first().json.date }})\nParticipants : {{ $('Préparer').first().json.participants.map(p => p.prenom + ' (' + p.nom + (p.role ? ', ' + p.role : '') + ')').join(' ; ') }}\n\nTranscription horodatée :\n{{ $json.reperee }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"resume\": {\n      \"type\": \"string\"\n    },\n    \"decisions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"taches\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"tache\": {\n            \"type\": \"string\"\n          },\n          \"responsable\": {\n            \"type\": \"string\",\n            \"description\": \"Prénom d'un participant, ou vide\"\n          },\n          \"attribution\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"explicite\",\n              \"déduite\"\n            ]\n          },\n          \"echeance\": {\n            \"type\": \"string\",\n            \"description\": \"AAAA-MM-JJ ou vide\"\n          },\n          \"horodatage\": {\n            \"type\": \"string\",\n            \"description\": \"MM:SS\"\n          }\n        }\n      }\n    },\n    \"questions_ouvertes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"prochaine_reunion\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"date\": {\n          \"type\": \"string\"\n        },\n        \"heure\": {\n          \"type\": \"string\"\n        }\n      }\n    }\n  },\n  \"required\": [\n    \"resume\",\n    \"decisions\",\n    \"taches\",\n    \"questions_ouvertes\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu rédiges le compte rendu d'une réunion d'équipe à partir de sa transcription horodatée.\nLa transcription n'indique pas qui parle. Pour attribuer une tâche :\n- « explicite » : la personne est nommée (« Julie, tu passes la commande », « Merci Karim ») ou le contexte désigne sans ambiguïté qui s'engage ;\n- « déduite » : tu choisis le responsable par le contexte ou par son rôle (par exemple, un poseur va sur les chantiers, une cheffe d'atelier fait les essais en atelier). Utilise les rôles pour lever les ambiguïtés.\nSi un mot semble mal transcrit, utilise le vocabulaire du métier fourni pour le corriger dans le compte rendu.\n\nRègles :\n- Uniquement ce qui a été dit. N'invente ni tâche, ni décision, ni date.\n- Résumé : 3 phrases au plus.\n- Décisions : ce qui a été décidé ou validé, une phrase chacune.\n- Tâches : une action concrète, avec un responsable choisi parmi les participants (prénom exact) ou vide si personne n'est désigné.\n  Échéance au format AAAA-MM-JJ, calculée à partir de la date de la réunion (« avant mercredi », « lundi prochain »…). Laisse vide si aucune échéance n'est dite (par exemple « dès que possible »).\n  « Avant mercredi » signifie au plus tard le mercredi qui suit la réunion.\n  Horodatage MM:SS du moment où la tâche est attribuée.\n- Questions ouvertes : sujets laissés sans réponse ou reportés.\n- Prochaine réunion : date AAAA-MM-JJ et heure HH:MM si elles sont dites, sinon vide."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000008",
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        320
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.1,
+          "numCtx": 16384,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000009",
+      "name": "Contrôles et fichiers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Contrôles, puis fichiers joints : compte rendu (Markdown), échéances (.ics), transcription (.txt).\nconst r = $('Préparer').first().json;\nconst tr = $('Transcription repérée').first().json;\nconst cr = $('Rédiger le compte rendu').first().json.output;\nconst prenoms = new Map(r.participants.map(p => [p.prenom.toLowerCase(), p]));\nconst sec = s => { const m = /^(\\d{1,3}):(\\d{2})$/.exec(String(s ?? '').trim()); return m ? +m[1] * 60 + +m[2] : NaN; };\nconst jour = d => DateTime.fromISO(d).setLocale('fr').toFormat('cccc d LLLL');\nconst taches = (cr.taches ?? []).map(t => {\n  const p = prenoms.get(String(t.responsable ?? '').trim().split(' ')[0].toLowerCase());\n  const ech = /^\\d{4}-\\d{2}-\\d{2}$/.test(t.echeance ?? '') ? t.echeance : '';\n  const alertes = [];\n  if (!p) alertes.push('responsable à désigner');\n  else if (t.attribution !== 'explicite') alertes.push('responsable à confirmer');\n  if (!ech) alertes.push('échéance à préciser');\n  else if (ech < r.date) alertes.push('échéance antérieure à la réunion');\n  if (isNaN(sec(t.horodatage)) || sec(t.horodatage) > tr.duree_s + 5) alertes.push('horodatage invalide');\n  return { tache: t.tache, responsable: p ? p.prenom : '', email: p?.email ?? '', echeance: ech, echeance_lisible: ech ? jour(ech) : '', horodatage: t.horodatage, alertes };\n});\nconst aVerifier = taches.filter(t => t.alertes.length).length;\n\nconst md = ['# ' + r.titre + ' · ' + DateTime.fromISO(r.date).setLocale('fr').toFormat('cccc d LLLL yyyy'), '',\n  '*Participants : ' + r.participants.map(p => p.nom + (p.role ? ' (' + p.role + ')' : '')).join(', ') + ' · durée ' + tr.duree + '*', '',\n  '## Résumé', '', cr.resume, '', '## Décisions', '', ...(cr.decisions ?? []).map(d => '- ' + d), '',\n  '## Tâches', '', '| Tâche | Responsable | Échéance | Repère |', '|---|---|---|---|',\n  ...taches.map(t => `| ${t.tache} | ${t.responsable ? t.responsable + (t.alertes.includes('responsable à confirmer') ? ' (à confirmer)' : '') : '⚠ à désigner'} | ${t.echeance_lisible || '⚠ à préciser'} | ${t.horodatage} |`), '',\n  '## Questions ouvertes', '', ...(cr.questions_ouvertes ?? []).map(q => '- ' + q), '',\n  ...(cr.prochaine_reunion?.date ? ['## Prochaine réunion', '', jour(cr.prochaine_reunion.date) + (cr.prochaine_reunion.heure ? ' à ' + cr.prochaine_reunion.heure : ''), ''] : []),\n].join('\\n');\n\nconst ics = d => d.replace(/-/g, '');\nconst lendemain = d => DateTime.fromISO(d).plus({ days: 1 }).toISODate().replace(/-/g, '');\nconst echap = s => String(s).replace(/[\\\\;,]/g, m => '\\\\' + m).replace(/\\n/g, ' ');\nconst stamp = $now.toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\");\nconst evts = taches.filter(t => t.echeance).map((t, i) => ['BEGIN:VEVENT', 'UID:' + r.date + '-' + i + '@chene-et-cie.demo', 'DTSTAMP:' + stamp,\n  'DTSTART;VALUE=DATE:' + ics(t.echeance), 'DTEND;VALUE=DATE:' + lendemain(t.echeance),\n  'SUMMARY:' + echap('Échéance · ' + t.tache + (t.responsable ? ' (' + t.responsable + ')' : '')),\n  'DESCRIPTION:' + echap('Tâche décidée lors de « ' + r.titre + ' » du ' + r.date + ', à ' + t.horodatage + ' de l\\'enregistrement.'), 'END:VEVENT']);\nif (cr.prochaine_reunion?.date && /^\\d{2}:\\d{2}$/.test(cr.prochaine_reunion.heure ?? '')) {\n  const debut = DateTime.fromISO(cr.prochaine_reunion.date + 'T' + cr.prochaine_reunion.heure, { zone: 'Europe/Paris' });\n  evts.push(['BEGIN:VEVENT', 'UID:prochaine-' + r.date + '@chene-et-cie.demo', 'DTSTAMP:' + stamp, 'DTSTART:' + debut.toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\"),\n    'DTEND:' + debut.plus({ minutes: 30 }).toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\"), 'SUMMARY:' + echap('Prochaine réunion · ' + r.titre), 'END:VEVENT']);\n}\nconst calendrier = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//VudeLao//Compte rendu de reunion//FR', 'CALSCALE:GREGORIAN', ...evts.flat(), 'END:VCALENDAR'].join('\\r\\n');\n\nconst f = async (txt, nom, type) => await this.helpers.prepareBinaryData(Buffer.from(txt, 'utf8'), nom, type);\nconst base = 'reunion-' + r.date;\nreturn [{ json: { titre: r.titre, date: r.date, date_lisible: DateTime.fromISO(r.date).setLocale('fr').toFormat('cccc d LLLL yyyy'), duree: tr.duree,\n    participants: r.participants, destinataires: r.participants.map(p => p.email).filter(Boolean).join(','),\n    resume: cr.resume, decisions: cr.decisions ?? [], taches, questions_ouvertes: cr.questions_ouvertes ?? [],\n    prochaine: cr.prochaine_reunion?.date ? jour(cr.prochaine_reunion.date) + (cr.prochaine_reunion.heure ? ' à ' + cr.prochaine_reunion.heure : '') : '',\n    a_verifier: aVerifier },\n  binary: {\n    compte_rendu: await f(md, base + '-compte-rendu.md', 'text/markdown'),\n    agenda: await f(calendrier, base + '-echeances.ics', 'text/calendar'),\n    transcription: await f(tr.reperee, base + '-transcription.txt', 'text/plain'),\n  } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000010",
+      "name": "Envoyer aux participants",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "comptes-rendus@chene-et-cie.demo",
+        "toEmail": "={{ $json.destinataires }}",
+        "subject": "=Compte rendu · {{ $json.titre }} · {{ $json.date_lisible }}{{ $json.a_verifier ? ' · ⚠ ' + $json.a_verifier + ' tâche(s) à compléter' : '' }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Compte rendu automatique · {{ $json.date_lisible }} · {{ $json.duree }} d'enregistrement</p>\n<h2 style=\"margin:0 0 8px\">{{ $json.titre.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</h2>\n<p style=\"margin:0 0 14px;color:#3B4441\">{{ $json.resume.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</p>\n{{ $json.a_verifier ? '<p style=\"padding:10px 14px;border-radius:6px;background:#FBEDE6\"><b>⚠ ' + $json.a_verifier + ' tâche(s) à compléter</b> : responsable à confirmer, ou échéance à préciser.</p>' : '' }}\n<h3 style=\"margin:18px 0 6px\">Décisions</h3>\n<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6\">{{ $json.decisions.map(d => '<li>' + d.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') }}</ul>\n<h3 style=\"margin:18px 0 6px\">Tâches</h3>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\"><tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Tâche</td><td style=\"border-bottom:1px solid #D8D2C5\">Qui</td><td style=\"border-bottom:1px solid #D8D2C5\">Pour</td></tr>\n{{ $json.taches.map(t => '<tr><td style=\"padding:6px 10px 6px 0;vertical-align:top\">' + t.tache.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' <span style=\"color:#8A918D;font-size:12px\">(' + t.horodatage + ')</span></td><td style=\"vertical-align:top;padding-top:6px\">' + (t.responsable ? t.responsable + (t.alertes.includes('responsable à confirmer') ? ' <span style=\"color:#9E5238;font-size:12px\">(à confirmer)</span>' : '') : '<b style=\"color:#9E5238\">à désigner</b>') + '</td><td style=\"vertical-align:top;padding-top:6px;white-space:nowrap\">' + (t.echeance_lisible || '<b style=\"color:#9E5238\">à préciser</b>') + '</td></tr>').join('') }}</table>\n<h3 style=\"margin:18px 0 6px\">Questions ouvertes</h3>\n<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6\">{{ $json.questions_ouvertes.length ? $json.questions_ouvertes.map(q => '<li>' + q.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') : '<li>Aucune</li>' }}</ul>\n{{ $json.prochaine ? '<p style=\"margin-top:16px\"><b>Prochaine réunion :</b> ' + $json.prochaine + '</p>' : '' }}\n<p style=\"margin-top:18px;font-size:12px;color:#5E6662\">En pièces jointes : le compte rendu, les échéances à ajouter à votre agenda (.ics) et la transcription horodatée. Transcription et rédaction par IA locale : l'enregistrement n'a quitté aucun serveur. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "compte_rendu,agenda,transcription"
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000011",
+      "name": "Une ligne par tâche",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const c = $('Contrôles et fichiers').first().json;\nreturn c.taches.map(t => ({ json: { reunion: c.titre, date_reunion: c.date, tache: t.tache, responsable: t.responsable || 'à désigner', echeance: t.echeance || null, statut: 'à faire' } }));"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8005-000000000012",
+      "name": "Enregistrer les tâches",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "taches_reunions_demo"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {},
+          "schema": [
+            {
+              "id": "reunion",
+              "displayName": "reunion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "date_reunion",
+              "displayName": "date_reunion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "tache",
+              "displayName": "tache",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "responsable",
+              "displayName": "responsable",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "echeance",
+              "displayName": "echeance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Déposer l'enregistrement": {
+      "main": [
+        [
+          {
+            "node": "Créer la table si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer la table si besoin": {
+      "main": [
+        [
+          {
+            "node": "Préparer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer": {
+      "main": [
+        [
+          {
+            "node": "Transcrire (Whisper local)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrire (Whisper local)": {
+      "main": [
+        [
+          {
+            "node": "Transcription repérée",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcription repérée": {
+      "main": [
+        [
+          {
+            "node": "Rédiger le compte rendu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Rédiger le compte rendu",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger le compte rendu": {
+      "main": [
+        [
+          {
+            "node": "Contrôles et fichiers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrôles et fichiers": {
+      "main": [
+        [
+          {
+            "node": "Envoyer aux participants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoyer aux participants": {
+      "main": [
+        [
+          {
+            "node": "Une ligne par tâche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Une ligne par tâche": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer les tâches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

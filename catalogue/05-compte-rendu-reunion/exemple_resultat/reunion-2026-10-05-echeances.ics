@@ -1,0 +1,44 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//VudeLao//Compte rendu de reunion//FR
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:2026-10-05-0@chene-et-cie.demo
+DTSTAMP:20261005T122748Z
+DTSTART;VALUE=DATE:20261007
+DTEND;VALUE=DATE:20261008
+SUMMARY:Échéance · Passer la commande de chêne à la scierie du Limousin (Julie)
+DESCRIPTION:Tâche décidée lors de « Point d'équipe du lundi » du 2026-10-05\, à 00:20 de l'enregistrement.
+END:VEVENT
+BEGIN:VEVENT
+UID:2026-10-05-1@chene-et-cie.demo
+DTSTAMP:20261005T122748Z
+DTSTART;VALUE=DATE:20261008
+DTEND;VALUE=DATE:20261009
+SUMMARY:Échéance · Reprendre les cotes chez Madame Durand (Karim)
+DESCRIPTION:Tâche décidée lors de « Point d'équipe du lundi » du 2026-10-05\, à 00:42 de l'enregistrement.
+END:VEVENT
+BEGIN:VEVENT
+UID:2026-10-05-2@chene-et-cie.demo
+DTSTAMP:20261005T122748Z
+DTSTART;VALUE=DATE:20261009
+DTEND;VALUE=DATE:20261010
+SUMMARY:Échéance · Envoyer le devis révisé à la mairie de Tulle pour la porte de l'école (Marc)
+DESCRIPTION:Tâche décidée lors de « Point d'équipe du lundi » du 2026-10-05\, à 00:46 de l'enregistrement.
+END:VEVENT
+BEGIN:VEVENT
+UID:2026-10-05-3@chene-et-cie.demo
+DTSTAMP:20261005T122748Z
+DTSTART;VALUE=DATE:20261012
+DTEND;VALUE=DATE:20261013
+SUMMARY:Échéance · Tester la nouvelle huile dure sur une chute de chêne et donner le résultat (Julie)
+DESCRIPTION:Tâche décidée lors de « Point d'équipe du lundi » du 2026-10-05\, à 01:03 de l'enregistrement.
+END:VEVENT
+BEGIN:VEVENT
+UID:prochaine-2026-10-05@chene-et-cie.demo
+DTSTAMP:20261005T122748Z
+DTSTART:20261012T060000Z
+DTEND:20261012T063000Z
+SUMMARY:Prochaine réunion · Point d'équipe du lundi
+END:VEVENT
+END:VCALENDAR
