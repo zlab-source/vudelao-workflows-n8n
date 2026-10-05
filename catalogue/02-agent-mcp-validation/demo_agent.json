@@ -1,0 +1,419 @@
+{
+  "id": "cat02AgentHitl",
+  "name": "Catalogue 02 · Agent service client · outils MCP + validation humaine (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8022-000000000005",
+      "name": "Note 5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -500
+      ],
+      "parameters": {
+        "content": "## 🤖 Agent IA avec outils MCP et validation humaine\n**Problème :** un agent IA qui agit seul inquiète, à juste titre. Un agent qui ne fait que parler n'aide pas beaucoup.\n\n**Solution :**\n1. Une demande client arrive.\n2. L'agent (IA locale) **consulte les données via MCP** : commande, politique de service. Lecture libre.\n3. Pour toute **action sensible** (ici, accorder un geste commercial), l'outil est **verrouillé** : le gérant reçoit un email avec deux boutons, *Accepter* ou *Refuser*. Rien ne se passe sans son accord.\n4. L'agent rédige la réponse en tenant compte de la décision, puis l'envoie au client.\n\n*Démo sur données fictives. La version pro ajoute la boîte mail comme déclencheur, le brouillon à relire avant envoi, la validation sur Telegram ou Slack et l'historique des décisions.*",
+        "width": 640,
+        "height": 440,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000006",
+      "name": "Demande client",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Contacter le service client",
+        "formDescription": "Démo : une demande client. En production, le déclencheur est la boîte mail du service client.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Nom",
+              "fieldName": "nom",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldName": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Numéro de commande",
+              "fieldName": "commande",
+              "placeholder": "CC-1038"
+            },
+            {
+              "fieldLabel": "Votre message",
+              "fieldName": "message",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Envoyer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Merci, votre demande est bien reçue. Vous recevrez une réponse par email."
+            }
+          }
+        }
+      },
+      "webhookId": "5b9e1f40-2c3d-4e5f-8a6b-ca7a00000003"
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000007",
+      "name": "Créer la table si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "gestes_commerciaux_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "commande",
+              "type": "string"
+            },
+            {
+              "name": "client",
+              "type": "string"
+            },
+            {
+              "name": "montant",
+              "type": "number"
+            },
+            {
+              "name": "motif",
+              "type": "string"
+            },
+            {
+              "name": "accorde_le",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000008",
+      "name": "Assistant service client",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        480,
+        100
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Demande reçue du client.\nNom : {{ $('Demande client').item.json.nom }}\nEmail : {{ $('Demande client').item.json.email }}\nNuméro de commande : {{ $('Demande client').item.json.commande || 'non précisé' }}\nMessage :\n{{ $('Demande client').item.json.message }}",
+        "options": {
+          "systemMessage": "Tu es l'assistant du service client de Chêne & Cie, un atelier de menuiserie (entreprise fictive de démonstration).\nTu traites une demande client et tu rédiges la réponse qui lui sera envoyée par email.\n\nMéthode :\n1. Si un numéro de commande est fourni, consulte-le avec l'outil consulter_commande. Consulte aussi politique_service_client dès que la demande touche un retour, un dommage, un retard ou un geste.\n2. Ne donne que des informations présentes dans les outils. N'invente ni date, ni numéro de suivi, ni montant.\n3. Geste commercial : si la politique le permet, calcule un montant dans la fourchette autorisée et appelle l'outil accorder_geste_commercial. Cet outil demande l'accord du gérant.\n   Format obligatoire de l'appel, paramètres regroupés dans toolParameters :\n   {\"toolParameters\": {\"commande\": \"CC-1234\", \"client\": \"Prénom Nom\", \"montant\": 25.5, \"motif\": \"Raison en une phrase\"}}\n   - S'il est accepté, annonce le geste et son montant.\n   - S'il est refusé, n'annonce aucun geste : indique que la demande est transmise et qu'un conseiller revient vers le client.\n   - N'annonce jamais un geste sans que l'outil ait été accepté.\n4. Si le client signale un dommage sans photo, demande-la.\n\nRéponse finale : uniquement le corps de l'email, en français, vouvoiement, ton chaleureux et concis (8 lignes au plus), sans objet, signé « Le service client de Chêne & Cie ».",
+          "maxIterations": 8,
+          "enableStreaming": false
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000009",
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        300,
+        360
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "temperature": 0,
+          "numCtx": 16384,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000010",
+      "name": "Outils Chêne & Cie (MCP)",
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.4,
+      "position": [
+        480,
+        360
+      ],
+      "parameters": {
+        "endpointUrl": "http://localhost:5678/mcp/chene-et-cie-outils",
+        "serverTransport": "httpStreamable",
+        "authentication": "bearerAuth",
+        "include": "all",
+        "options": {}
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "cat02McpBearer01",
+          "name": "Clé MCP (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000011",
+      "name": "Validation du gérant",
+      "type": "n8n-nodes-base.emailSendHitlTool",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        360
+      ],
+      "parameters": {
+        "fromEmail": "assistant@chene-et-cie.demo",
+        "toEmail": "gerant@chene-et-cie.demo",
+        "subject": "=Validation demandée · geste commercial · {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).commande }} · {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).montant }} €",
+        "message": "={{ (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? '' : '⚠ Demande mal transmise par l\\'IA : refusez-la, l\\'assistant la reformulera.\\n\\n' }}L'assistant propose un geste commercial.\n\nCommande : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).commande }}\nClient : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).client }}\nMontant : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).montant }} € TTC\nMotif : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).motif }}\n\nAcceptez-vous ce geste ?",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Accepter",
+            "disapproveLabel": "Refuser"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 24,
+              "resumeUnit": "hours"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000012",
+      "name": "accorder_geste_commercial",
+      "type": "n8n-nodes-base.dataTableTool",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        580
+      ],
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Accorde un geste commercial (avoir) sur une commande. Nécessite l'accord du gérant. Paramètres : commande, client, montant TTC en euros, motif.",
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "gestes_commerciaux_demo"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "commande": "={{ $fromAI('commande', 'Numéro de commande concerné') }}",
+            "client": "={{ $fromAI('client', 'Nom du client') }}",
+            "montant": "={{ $fromAI('montant', 'Montant TTC du geste en euros', 'number') }}",
+            "motif": "={{ $fromAI('motif', 'Motif du geste en une phrase') }}",
+            "accorde_le": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "commande",
+              "displayName": "commande",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "montant",
+              "displayName": "montant",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "motif",
+              "displayName": "motif",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "accorde_le",
+              "displayName": "accorde_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8022-000000000013",
+      "name": "Répondre au client",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        820,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "service-client@chene-et-cie.demo",
+        "toEmail": "={{ $('Demande client').item.json.email }}",
+        "subject": "=Re : votre demande{{ $('Demande client').item.json.commande ? ' · commande ' + $('Demande client').item.json.commande : '' }}",
+        "emailFormat": "text",
+        "text": "={{ $json.output }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Demande client": {
+      "main": [
+        [
+          {
+            "node": "Créer la table si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer la table si besoin": {
+      "main": [
+        [
+          {
+            "node": "Assistant service client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assistant service client",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outils Chêne & Cie (MCP)": {
+      "ai_tool": [
+        [
+          {
+            "node": "Assistant service client",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "accorder_geste_commercial": {
+      "ai_tool": [
+        [
+          {
+            "node": "Validation du gérant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation du gérant": {
+      "ai_tool": [
+        [
+          {
+            "node": "Assistant service client",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assistant service client": {
+      "main": [
+        [
+          {
+            "node": "Répondre au client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

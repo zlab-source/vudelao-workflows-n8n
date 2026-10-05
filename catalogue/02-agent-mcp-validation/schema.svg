@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="360" rx="12" fill="#F5F2EA"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#315C5A"/></marker>
+  <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#C47A61"/></marker></defs>
+  <g font-size="13" fill="#1D2422" text-anchor="middle">
+    <rect x="20" y="70" width="130" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="85" y="100" font-weight="bold">Demande client</text><text x="85" y="120" fill="#5E6662" font-size="11">formulaire ou mail</text>
+
+    <rect x="200" y="55" width="190" height="100" rx="8" fill="#315C5A"/>
+    <text x="295" y="92" font-weight="bold" fill="#fff">Agent IA</text><text x="295" y="112" fill="#E5DED3" font-size="11">Qwen 3.6 · Ollama, en local</text><text x="295" y="129" fill="#E5DED3" font-size="11">raisonne, choisit ses outils</text>
+
+    <rect x="440" y="70" width="170" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="525" y="100" font-weight="bold">Réponse au client</text><text x="525" y="120" fill="#5E6662" font-size="11">tient compte de la décision</text>
+
+    <rect x="160" y="215" width="190" height="110" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="255" y="243" font-weight="bold">Serveur MCP</text><text x="255" y="263" fill="#5E6662" font-size="11">consulter_commande</text><text x="255" y="280" fill="#5E6662" font-size="11">politique_service_client</text><text x="255" y="306" fill="#315C5A" font-size="11" font-weight="bold">lecture libre</text>
+
+    <rect x="400" y="215" width="200" height="110" rx="8" fill="#fff" stroke="#C47A61" stroke-width="1.5"/>
+    <text x="500" y="243" font-weight="bold">Validation du gérant</text><text x="500" y="263" fill="#5E6662" font-size="11">email : Accepter / Refuser</text><text x="500" y="280" fill="#5E6662" font-size="11">attente jusqu'à 24 h</text><text x="500" y="306" fill="#9E5238" font-size="11" font-weight="bold">action verrouillée</text>
+
+    <rect x="650" y="215" width="190" height="110" rx="8" fill="#fff" stroke="#D8D2C5"/>
+    <text x="745" y="243" font-weight="bold">accorder_geste</text><text x="745" y="263" fill="#5E6662" font-size="11">enregistre l'avoir</text><text x="745" y="280" fill="#5E6662" font-size="11">uniquement si accepté</text>
+  </g>
+  <g stroke="#315C5A" stroke-width="2" fill="none">
+    <path d="M150 105H196" marker-end="url(#a)"/><path d="M390 105H436" marker-end="url(#a)"/>
+    <path d="M265 155V211" marker-end="url(#a)"/>
+  </g>
+  <g stroke="#C47A61" stroke-width="2" fill="none">
+    <path d="M330 155C330 190 480 180 480 211" marker-end="url(#t)"/><path d="M600 270H646" marker-end="url(#t)"/>
+  </g>
+  <text x="900" y="45" font-size="11" fill="#5E6662" text-anchor="end">Lire : libre. Agir : seulement avec votre accord.</text>
+</svg>

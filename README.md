@@ -20,6 +20,7 @@ Toutes les données sont **fictives** (entreprise de démonstration « Chêne & 
 | Dossier | Ce que fait le workflow |
 |---|---|
 | [`01-factures-fournisseurs`](catalogue/01-factures-fournisseurs/) | Facture PDF lue par une IA locale, contrôles (montants, SIRET, dates, doublons), écriture comptable proposée, récapitulatif à la comptabilité. |
+| [`02-agent-mcp-validation`](catalogue/02-agent-mcp-validation/) | Agent IA de service client : lit les données via un serveur MCP, n'accorde un geste commercial qu'après accord du gérant par email. |
 
 ### `supervision/` · surveiller les automatisations de plusieurs clients
 

@@ -1,0 +1,108 @@
+{
+  "id": "cat02OutilsMcp",
+  "name": "Catalogue 02 · Outils Chêne & Cie exposés en MCP (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8021-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -320
+      ],
+      "parameters": {
+        "content": "## 🔌 Serveur d'outils MCP\nCe workflow publie des outils **en lecture seule** au format MCP (Model Context Protocol), le standard ouvert qui permet à n'importe quel agent IA (n8n, Claude, ChatGPT, Cursor…) d'utiliser vos données.\n\nLes données sont fictives et intégrées pour la démo. En production, chaque outil interroge votre vrai système : boutique, ERP, base clients.\n\nAccès protégé par une clé (Bearer).",
+        "width": 520,
+        "height": 260,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8021-000000000002",
+      "name": "Serveur MCP",
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "authentication": "bearerAuth",
+        "path": "chene-et-cie-outils",
+        "instructions": "Outils du service client de Chêne & Cie : consultation des commandes et de la politique de service. Lecture seule."
+      },
+      "webhookId": "5b9e1f40-2c3d-4e5f-8a6b-ca7a00000002",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "cat02McpBearer01",
+          "name": "Clé MCP (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8021-000000000003",
+      "name": "consulter_commande",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -120,
+        240
+      ],
+      "parameters": {
+        "description": "Renvoie le détail d'une commande à partir de son numéro (format CC-1234) : client, articles, prix, statut, dates, transporteur et suivi.",
+        "language": "javaScript",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"numero\": {\n      \"type\": \"string\",\n      \"description\": \"Numéro de commande, ex. CC-1038\"\n    }\n  },\n  \"required\": [\n    \"numero\"\n  ]\n}",
+        "jsCode": "const commandes = {\n  \"CC-1038\": {\n    \"client\": \"Claire Fontaine\",\n    \"email\": \"claire.fontaine@client.demo\",\n    \"date\": \"2026-09-22\",\n    \"statut\": \"livrée\",\n    \"livree_le\": \"2026-09-29\",\n    \"articles\": [\n      {\n        \"designation\": \"Plateau de table en chêne massif 180 × 90 cm\",\n        \"quantite\": 1,\n        \"prix_ttc\": 690\n      }\n    ],\n    \"transporteur\": \"Messagerie Ouest\",\n    \"total_ttc\": 690\n  },\n  \"CC-1042\": {\n    \"client\": \"Marc Delmas\",\n    \"email\": \"marc.delmas@client.demo\",\n    \"date\": \"2026-09-30\",\n    \"statut\": \"en fabrication\",\n    \"expedition_prevue\": \"2026-10-09\",\n    \"articles\": [\n      {\n        \"designation\": \"Banc en chêne huilé 160 cm\",\n        \"quantite\": 1,\n        \"prix_ttc\": 420\n      },\n      {\n        \"designation\": \"Huile d'entretien 500 ml\",\n        \"quantite\": 1,\n        \"prix_ttc\": 24\n      }\n    ],\n    \"total_ttc\": 444\n  },\n  \"CC-1045\": {\n    \"client\": \"Inès Royer\",\n    \"email\": \"ines.royer@client.demo\",\n    \"date\": \"2026-10-01\",\n    \"statut\": \"expédiée\",\n    \"expediee_le\": \"2026-10-03\",\n    \"articles\": [\n      {\n        \"designation\": \"Étagère murale en chêne 120 cm\",\n        \"quantite\": 2,\n        \"prix_ttc\": 135\n      }\n    ],\n    \"transporteur\": \"Colis Express\",\n    \"suivi\": \"CE-7781-2290-FR\",\n    \"total_ttc\": 270\n  }\n};\nconst numero = String(query.numero ?? query).toUpperCase().replace(/\\s/g, '').trim();\nconst c = commandes[numero];\nreturn c ? JSON.stringify({ numero, ...c }) : JSON.stringify({ erreur: 'Commande introuvable', numero });"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8021-000000000004",
+      "name": "politique_service_client",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        100,
+        240
+      ],
+      "parameters": {
+        "description": "Renvoie la politique du service client : rétractation, garantie, dommages de transport, gestes commerciaux autorisés, délais.",
+        "language": "javaScript",
+        "jsCode": "return \"Politique service client de Chêne & Cie (entreprise fictive de démonstration) :\\n- Rétractation : 14 jours après livraison pour les articles standards, retour aux frais du client.\\n- Garantie : 2 ans sur la fabrication.\\n- Dommage pendant le transport : signalé sous 7 jours avec une photo ; au choix du client, remplacement de la pièce ou geste commercial.\\n- Geste commercial : de 5 % à 15 % du prix de l'article concerné ; il doit toujours être validé par le gérant avant d'être annoncé.\\n- Retard de fabrication de plus de 7 jours : information du client et geste possible de 5 %.\\n- Délais habituels : fabrication 5 à 10 jours ouvrés, livraison 2 à 4 jours.\";"
+      }
+    }
+  ],
+  "connections": {
+    "consulter_commande": {
+      "ai_tool": [
+        [
+          {
+            "node": "Serveur MCP",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "politique_service_client": {
+      "ai_tool": [
+        [
+          {
+            "node": "Serveur MCP",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}
