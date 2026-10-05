@@ -22,6 +22,7 @@ Toutes les données sont **fictives** (entreprise de démonstration « Chêne & 
 | [`01-factures-fournisseurs`](catalogue/01-factures-fournisseurs/) | Facture PDF lue par une IA locale, contrôles (montants, SIRET, dates, doublons), écriture comptable proposée, récapitulatif à la comptabilité. |
 | [`02-agent-mcp-validation`](catalogue/02-agent-mcp-validation/) | Agent IA de service client : lit les données via un serveur MCP, n'accorde un geste commercial qu'après accord du gérant par email. |
 | [`03-video-campagne`](catalogue/03-video-campagne/) | Une vidéo transcrite en local (Whisper) devient sous-titres, article de blog, 3 posts LinkedIn, post court, newsletter et chapitres YouTube, avec contrôles automatiques. |
+| [`04-rag-avance`](catalogue/04-rag-avance/) | Assistant documentaire : recherche hybride (sens + mots-clés), reclassement par IA, réponses sourcées et citations vérifiées, mise à jour automatique des documents modifiés. |
 
 ### `supervision/` · surveiller les automatisations de plusieurs clients
 

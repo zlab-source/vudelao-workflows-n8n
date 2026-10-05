@@ -1,0 +1,1025 @@
+{
+  "id": "cat04RagAvance",
+  "name": "Catalogue 04 · Assistant documentaire avancé · RAG hybride (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8004-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -620
+      ],
+      "parameters": {
+        "content": "## 📚 Assistant documentaire avancé (RAG hybride)\n**Problème :** un assistant qui « cherche dans vos documents » rate les références exactes, mélange les versions et invente quand il ne trouve pas.\n\n**Indexation (en haut) :**\n1. On dépose des PDF, Markdown ou textes.\n2. Découpage **par section**, avec titre et page.\n3. Deux vecteurs par passage : **sens** (nomic, local) et **mots-clés** (BM25).\n4. **Mise à jour automatique** : un document inchangé est ignoré, un document modifié remplace l'ancienne version.\n\n**Questions (en bas) :**\n1. **Recherche hybride** dans Qdrant, fusion des deux classements (RRF).\n2. **Reclassement** des passages par l'IA locale ; seuls les pertinents sont gardés.\n3. Réponse **sourcée** ; les citations sont **vérifiées** ; « je ne trouve pas » plutôt qu'inventer.\n\n*Démo sur données fictives. La version pro ajoute Google Drive, SharePoint ou un dossier surveillé, les droits d'accès par service, la reformulation des questions et le suivi des questions sans réponse.*",
+        "width": 680,
+        "height": 560,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000002",
+      "name": "Ajouter des documents",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Ajouter ou mettre à jour des documents",
+        "formDescription": "Démo : PDF, Markdown ou texte. Un document déjà indexé et inchangé est ignoré ; s'il a changé, il remplace l'ancienne version.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Documents",
+              "fieldName": "documents",
+              "fieldType": "file",
+              "requiredField": true,
+              "multipleFiles": true,
+              "acceptFileTypes": ".pdf,.md,.txt"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Indexer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Documents reçus. Le rapport d'indexation arrive par email (Mailpit : http://localhost:8025)."
+            }
+          }
+        }
+      },
+      "webhookId": "8a4f1b20-6c3d-4e7f-9a1b-ca7a00000005"
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000003",
+      "name": "Créer la collection si besoin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "http://host.docker.internal:6333/collections/demo_rag_avance",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"vectors\":{\"dense\":{\"size\":768,\"distance\":\"Cosine\"}},\"sparse_vectors\":{\"mots\":{\"modifier\":\"idf\"}}}",
+        "options": {
+          "timeout": 120000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": false,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000004",
+      "name": "Un élément par fichier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Un élément par fichier déposé.\nconst src = $('Ajouter des documents').first();\nconst fichiers = Object.values(src.binary ?? {});\nif (!fichiers.length) throw new Error('Aucun fichier reçu.');\nreturn fichiers.map(f => ({ json: { source: f.fileName, extension: (f.fileExtension || f.fileName.split('.').pop() || '').toLowerCase() }, binary: { data: f } }));"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000006",
+      "name": "PDF ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8004-000000000005",
+              "leftValue": "={{ $json.extension }}",
+              "rightValue": "pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000007",
+      "name": "Extraire le texte du PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {
+          "joinPages": false
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000008",
+      "name": "Texte du PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// PDF : texte extrait page par page.\nreturn $input.all().map((it, i) => {\n  const t = it.json.text;\n  return { json: { source: $('Un élément par fichier').all().filter(x => x.json.extension === 'pdf')[i].json.source, format: 'pdf', pages: Array.isArray(t) ? t : [String(t ?? '')] } };\n});"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000009",
+      "name": "Texte brut",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Fichiers texte et Markdown : lecture directe.\nconst res = [];\nfor (let i = 0; i < $input.all().length; i++) {\n  const it = $input.all()[i];\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  res.push({ json: { source: it.json.source, format: 'markdown', pages: [buf.toString('utf8')] } });\n}\nreturn res;"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000010",
+      "name": "Rassembler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1320,
+        100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000011",
+      "name": "Découper en passages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const MOTS_VIDES = new Set('le la les un une des de du et ou en au aux a ce ces cet cette est sont pour par sur dans avec sans que qui quoi quel quelle quels quelles ne pas plus se sa son ses leur leurs il elle ils elles on nous vous je tu y d l qu s c n m t j mon ma mes votre vos notre nos etre avoir fait faire peut doit comme si mais donc car tout tous toute toutes chaque entre apres avant'.split(' '));\nconst racine = w => /^\\d/.test(w) || w.length < 5 ? w : w.replace(/(s|x)$/, '').replace(/e$/, '');\nfunction termes(texte) {\n  const t = String(texte).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  const res = [];\n  for (const [w] of t.matchAll(/[a-z0-9]+(?:[-.][a-z0-9]+)*/g)) {\n    if (/[-.]/.test(w)) { res.push(w); for (const p of w.split(/[-.]/)) if (p.length > 1 && !MOTS_VIDES.has(p)) res.push(racine(p)); continue; }\n    if (w.length > 1 && !MOTS_VIDES.has(w)) res.push(racine(w));\n  }\n  return res;\n}\nfunction fnv(s, graine = 0x811c9dc5) { let h = graine >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; }\nfunction vecteurMots(texte, requete = false) {\n  const tf = new Map();\n  for (const w of termes(texte)) { const k = fnv(w); tf.set(k, (tf.get(k) || 0) + 1); }\n  const L = [...tf.values()].reduce((a, b) => a + b, 0), k1 = 1.2, b = 0.75, moy = 90;\n  const indices = [...tf.keys()];\n  return { indices, values: indices.map(i => requete ? 1 : tf.get(i) * (k1 + 1) / (tf.get(i) + k1 * (1 - b + b * L / moy))) };\n}\nconst empreinte = s => [0x811c9dc5, 0x12345678, 0x9e3779b9, 0x7f4a7c15].map(g => fnv(s, g).toString(16).padStart(8, '0')).join('');\nconst uuid = s => { const h = empreinte(s); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };\n// Découpage en passages : par section (titres Markdown ou titres numérotés des PDF), 1 000 caractères au plus, avec chevauchement.\nconst MAX = 1000;\nfunction couper(bloc) {\n  if (bloc.texte.length <= MAX) return [bloc];\n  const paras = bloc.texte.split(/\\n{1,}/).filter(p => p.trim());\n  const res = []; let cur = [];\n  for (const p of paras) {\n    if (cur.join('\\n').length + p.length > MAX && cur.length) { res.push({ ...bloc, texte: cur.join('\\n') }); cur = [cur[cur.length - 1]]; }\n    cur.push(p);\n  }\n  if (cur.length) res.push({ ...bloc, texte: cur.join('\\n') });\n  return res;\n}\nconst docs = [];\nfor (const it of $input.all()) {\n  const { source, format, pages } = it.json;\n  const blocs = []; let titre = source.replace(/\\.[^.]+$/, '').replace(/_/g, ' '), section = '', cur = [], page = 1;\n  const vider = () => { const t = cur.join('\\n').trim(); if (t.replace(/[*_#|\\-\\s]/g, '').length > 20) blocs.push({ section: section ? titre + ' › ' + section : titre, page: format === 'pdf' ? page : null, texte: t }); cur = []; };\n  pages.forEach((txt, p) => {\n    if (format === 'pdf') { vider(); page = p + 1; }\n    const lignes = String(txt).split('\\n');\n    lignes.forEach((l, k) => {\n      const md = format !== 'pdf' && /^(#{1,3})\\s+(.*)/.exec(l);\n      const num = format === 'pdf' && /^\\d+\\.\\s+\\S.{0,70}$/.test(l.trim()) && !/[.:;,]$/.test(l.trim());\n      if (format === 'pdf' && p === 0 && k === 0 && l.trim()) { titre = l.trim(); return; }\n      if (md) { vider(); if (md[1] === '#') titre = md[2].trim(); else section = md[2].trim(); return; }\n      if (num) { vider(); section = l.trim(); return; }\n      cur.push(l);\n    });\n  });\n  vider();\n  const passages = blocs.flatMap(couper).map((b, i) => ({ ...b, index: i }));\n  const contenu = pages.join('\\n');\n  docs.push({ json: { source, titre, empreinte: empreinte(contenu), nb_passages: passages.length, passages } });\n}\nreturn docs;"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000012",
+      "name": "Versions déjà indexées",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points/scroll",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\":{\"must\":[{\"key\":\"index\",\"match\":{\"value\":0}}]},\"limit\":10000,\"with_payload\":[\"source\",\"empreinte\"],\"with_vector\":false}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000013",
+      "name": "Comparer aux versions indexées",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Compare chaque document à la version déjà indexée (empreinte du contenu).\nconst indexes = new Map(($('Versions déjà indexées').first().json.result?.points ?? []).map(p => [p.payload.source, p.payload.empreinte]));\nreturn $('Découper en passages').all().map(d => {\n  const ancien = indexes.get(d.json.source);\n  const statut = !ancien ? 'nouveau' : ancien === d.json.empreinte ? 'inchangé' : 'mis à jour';\n  return { json: { ...d.json, statut, a_indexer: statut !== 'inchangé' } };\n});"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000015",
+      "name": "À indexer ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8004-000000000014",
+              "leftValue": "={{ $json.a_indexer }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000016",
+      "name": "Retirer l'ancienne version",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points/delete?wait=true",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filter: { must: [{ key: 'source', match: { value: $json.source } }] } }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000017",
+      "name": "Vecteurs sémantiques (nomic)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'nomic-embed-text', truncate: true, input: $('À indexer ?').item.json.passages.map(p => 'search_document: ' + p.section + '\\n' + p.texte) }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000018",
+      "name": "Construire les points",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const MOTS_VIDES = new Set('le la les un une des de du et ou en au aux a ce ces cet cette est sont pour par sur dans avec sans que qui quoi quel quelle quels quelles ne pas plus se sa son ses leur leurs il elle ils elles on nous vous je tu y d l qu s c n m t j mon ma mes votre vos notre nos etre avoir fait faire peut doit comme si mais donc car tout tous toute toutes chaque entre apres avant'.split(' '));\nconst racine = w => /^\\d/.test(w) || w.length < 5 ? w : w.replace(/(s|x)$/, '').replace(/e$/, '');\nfunction termes(texte) {\n  const t = String(texte).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  const res = [];\n  for (const [w] of t.matchAll(/[a-z0-9]+(?:[-.][a-z0-9]+)*/g)) {\n    if (/[-.]/.test(w)) { res.push(w); for (const p of w.split(/[-.]/)) if (p.length > 1 && !MOTS_VIDES.has(p)) res.push(racine(p)); continue; }\n    if (w.length > 1 && !MOTS_VIDES.has(w)) res.push(racine(w));\n  }\n  return res;\n}\nfunction fnv(s, graine = 0x811c9dc5) { let h = graine >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; }\nfunction vecteurMots(texte, requete = false) {\n  const tf = new Map();\n  for (const w of termes(texte)) { const k = fnv(w); tf.set(k, (tf.get(k) || 0) + 1); }\n  const L = [...tf.values()].reduce((a, b) => a + b, 0), k1 = 1.2, b = 0.75, moy = 90;\n  const indices = [...tf.keys()];\n  return { indices, values: indices.map(i => requete ? 1 : tf.get(i) * (k1 + 1) / (tf.get(i) + k1 * (1 - b + b * L / moy))) };\n}\nconst empreinte = s => [0x811c9dc5, 0x12345678, 0x9e3779b9, 0x7f4a7c15].map(g => fnv(s, g).toString(16).padStart(8, '0')).join('');\nconst uuid = s => { const h = empreinte(s); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };\n// Points Qdrant : vecteur sémantique (nomic) + vecteur mots-clés, et métadonnées pour citer la source.\nconst doc = $('À indexer ?').item.json;\nconst vecteurs = $json.embeddings;\nif (!vecteurs || vecteurs.length !== doc.passages.length) throw new Error('Nombre de vecteurs inattendu pour ' + doc.source);\nconst maintenant = new Date().toISOString();\nreturn { json: { points: doc.passages.map((p, i) => ({\n  id: uuid(doc.source + '#' + p.index),\n  vector: { dense: vecteurs[i], mots: vecteurMots(p.section + '\\n' + p.texte) },\n  payload: { source: doc.source, titre: doc.titre, section: p.section, page: p.page, texte: p.texte, index: p.index, empreinte: doc.empreinte, indexe_le: maintenant },\n})) } };"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000019",
+      "name": "Enregistrer dans Qdrant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        0
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points?wait=true",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ points: $json.points }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000020",
+      "name": "Fin de l'indexation",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3300,
+        100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000021",
+      "name": "Rapport d'indexation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Rapport d'indexation.\nconst docs = $('Comparer aux versions indexées').all().map(d => d.json);\nconst n = s => docs.filter(d => d.statut === s).length;\nreturn [{ json: { docs: docs.map(d => ({ source: d.source, statut: d.statut, passages: d.nb_passages })),\n  resume: `${n('nouveau')} nouveau(x), ${n('mis à jour')} mis à jour, ${n('inchangé')} inchangé(s)`,\n  passages_indexes: docs.filter(d => d.a_indexer).reduce((s, d) => s + d.nb_passages, 0) } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000022",
+      "name": "Envoyer le rapport",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3740,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "documents@chene-et-cie.demo",
+        "toEmail": "admin@chene-et-cie.demo",
+        "subject": "=Base documentaire · {{ $json.resume }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;color:#1D2422\">\n<h2 style=\"margin:0 0 6px\">Base documentaire à jour</h2>\n<p style=\"margin:0 0 14px;color:#5E6662\">{{ $json.resume }} · {{ $json.passages_indexes }} passages indexés</p>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\"><tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Document</td><td style=\"border-bottom:1px solid #D8D2C5\">Statut</td><td style=\"text-align:right;border-bottom:1px solid #D8D2C5\">Passages</td></tr>\n{{ $json.docs.map(d => '<tr><td style=\"padding:5px 0\">' + d.source + '</td><td>' + (d.statut === 'inchangé' ? '<span style=\"color:#5E6662\">inchangé, ignoré</span>' : '<b style=\"color:#315C5A\">' + d.statut + '</b>') + '</td><td style=\"text-align:right\">' + d.passages + '</td></tr>').join('') }}</table>\n<p style=\"margin-top:16px;font-size:12px;color:#5E6662\">Seuls les documents nouveaux ou modifiés sont réindexés ; l'ancienne version d'un document modifié est retirée. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000023",
+      "name": "Poser une question",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        700
+      ],
+      "parameters": {
+        "public": true,
+        "mode": "hostedChat",
+        "initialMessages": "Bonjour ! Je réponds à partir des documents de Chêne & Cie (CGV, garanties, tarifs, notices), en citant mes sources.",
+        "options": {
+          "responseMode": "lastNode",
+          "title": "Assistant documentaire · Chêne et Cie",
+          "subtitle": "Démo sur données fictives",
+          "inputPlaceholder": "Votre question…"
+        }
+      },
+      "webhookId": "8a4f1b20-6c3d-4e7f-9a1b-ca7a00000006"
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000024",
+      "name": "Préparer la recherche",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const MOTS_VIDES = new Set('le la les un une des de du et ou en au aux a ce ces cet cette est sont pour par sur dans avec sans que qui quoi quel quelle quels quelles ne pas plus se sa son ses leur leurs il elle ils elles on nous vous je tu y d l qu s c n m t j mon ma mes votre vos notre nos etre avoir fait faire peut doit comme si mais donc car tout tous toute toutes chaque entre apres avant'.split(' '));\nconst racine = w => /^\\d/.test(w) || w.length < 5 ? w : w.replace(/(s|x)$/, '').replace(/e$/, '');\nfunction termes(texte) {\n  const t = String(texte).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  const res = [];\n  for (const [w] of t.matchAll(/[a-z0-9]+(?:[-.][a-z0-9]+)*/g)) {\n    if (/[-.]/.test(w)) { res.push(w); for (const p of w.split(/[-.]/)) if (p.length > 1 && !MOTS_VIDES.has(p)) res.push(racine(p)); continue; }\n    if (w.length > 1 && !MOTS_VIDES.has(w)) res.push(racine(w));\n  }\n  return res;\n}\nfunction fnv(s, graine = 0x811c9dc5) { let h = graine >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; }\nfunction vecteurMots(texte, requete = false) {\n  const tf = new Map();\n  for (const w of termes(texte)) { const k = fnv(w); tf.set(k, (tf.get(k) || 0) + 1); }\n  const L = [...tf.values()].reduce((a, b) => a + b, 0), k1 = 1.2, b = 0.75, moy = 90;\n  const indices = [...tf.keys()];\n  return { indices, values: indices.map(i => requete ? 1 : tf.get(i) * (k1 + 1) / (tf.get(i) + k1 * (1 - b + b * L / moy))) };\n}\nconst empreinte = s => [0x811c9dc5, 0x12345678, 0x9e3779b9, 0x7f4a7c15].map(g => fnv(s, g).toString(16).padStart(8, '0')).join('');\nconst uuid = s => { const h = empreinte(s); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };\n// Question → vecteur mots-clés (le vecteur sémantique est calculé par Ollama juste après).\nconst question = String($json.chatInput ?? '').trim();\nif (!question) throw new Error('Question vide.');\nreturn [{ json: { question, mots: vecteurMots(question, true) } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000025",
+      "name": "Vecteur de la question",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'nomic-embed-text', input: 'search_query: ' + $json.question }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000026",
+      "name": "Recherche hybride",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ prefetch: [ { query: $json.embeddings[0], using: 'dense', limit: 20 }, { query: $('Préparer la recherche').first().json.mots, using: 'mots', limit: 20 } ], query: { fusion: 'rrf' }, limit: 12, with_payload: true }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000027",
+      "name": "Passages candidats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Passages candidats issus de la recherche hybride, numérotés.\nconst pts = $json.result?.points ?? [];\nreturn [{ json: { question: $('Préparer la recherche').first().json.question, candidats: pts.map((p, i) => ({ n: i + 1, source: p.payload.source, section: p.payload.section, page: p.payload.page, texte: p.payload.texte, score_rrf: Math.round(p.score * 1000) / 1000 })) } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000028",
+      "name": "Reclasser les passages",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        700
+      ],
+      "parameters": {
+        "text": "=Question : {{ $json.question }}\n\nPassages :\n{{ $json.candidats.map(p => '[' + p.n + '] ' + p.section + '\\n' + p.texte).join('\\n\\n') }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"notes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"n\": {\n            \"type\": \"number\"\n          },\n          \"pertinence\": {\n            \"type\": \"number\",\n            \"description\": \"0, 1, 2 ou 3\"\n          }\n        }\n      }\n    }\n  },\n  \"required\": [\n    \"notes\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu évalues la pertinence de passages de documents pour répondre à une question.\nPour chaque passage, donne une note de pertinence :\n3 = contient directement la réponse ; 2 = utile, contient une partie de la réponse ; 1 = même sujet mais ne répond pas ; 0 = hors sujet.\nSois strict : un passage qui parle du même thème sans donner l'information demandée vaut 1.\nNote tous les passages, avec leur numéro."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000029",
+      "name": "Qwen 3.6 · reclassement",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        920
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0,
+          "numCtx": 16384,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000030",
+      "name": "Garder les meilleurs passages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        700
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Garde les passages jugés pertinents (2 ou 3 sur 3), 4 au plus, dans l'ordre de pertinence.\nconst c = $('Passages candidats').first().json;\nconst notes = new Map(($json.output?.notes ?? []).map(x => [Number(x.n), Number(x.pertinence)]));\nconst gardes = c.candidats.map(p => ({ ...p, pertinence: notes.get(p.n) ?? 0 })).filter(p => p.pertinence >= 2)\n  .sort((a, b) => b.pertinence - a.pertinence || a.n - b.n).slice(0, 4).map((p, i) => ({ ...p, ref: i + 1 }));\nreturn [{ json: { question: c.question, sources: gardes, nb: gardes.length } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000032",
+      "name": "Sources pertinentes ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8004-000000000031",
+              "leftValue": "={{ $json.nb }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000033",
+      "name": "Rédiger la réponse",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1760,
+        600
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es l'assistant documentaire de Chêne & Cie (entreprise fictive de démonstration).\nRéponds à la question uniquement à partir des sources numérotées ci-dessous.\n\nRègles :\n- Cite la source de chaque information avec son numéro entre crochets, par exemple [1] ou [2].\n- Si les sources ne permettent de répondre qu'en partie, dis-le clairement et précise ce qui manque.\n- N'invente rien, n'ajoute aucune connaissance extérieure. Reprends exactement les chiffres, durées, prix et références.\n- Commence par la réponse directe (oui, non, un chiffre, une durée), puis l'essentiel. Pas de phrase de remplissage ni de répétition de la question.\n- Français, phrases simples, 80 mots au plus. Pas de liste de sources à la fin : elle est ajoutée automatiquement.\n\nSources :\n{{ $json.sources.map(s => '[' + s.ref + '] ' + s.section + (s.page ? ' (page ' + s.page + ')' : '') + '\\n' + s.texte).join('\\n\\n') }}\n\nQuestion : {{ $json.question }}"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000034",
+      "name": "Qwen 3.6 · réponse",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        820
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.1,
+          "numCtx": 16384,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000035",
+      "name": "Vérifier les citations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Vérifie les citations : seules les références [n] fournies sont gardées ; liste des sources citées en fin de réponse.\nconst { sources } = $('Garder les meilleurs passages').first().json;\nlet rep = String($json.text ?? '').trim();\nconst valides = new Set(sources.map(s => s.ref));\nrep = rep.replace(/\\[(\\d+)\\]/g, (m, n) => valides.has(+n) ? m : '');\nconst citees = [...new Set([...rep.matchAll(/\\[(\\d+)\\]/g)].map(m => +m[1]))].sort((a, b) => a - b);\nconst lignes = citees.map(n => { const s = sources.find(x => x.ref === n); return `- [${n}] ${s.source} · ${s.section}${s.page ? ' · p. ' + s.page : ''}`; });\nconst pied = lignes.length ? '\\n\\n**Sources**\\n\\n' + lignes.join('\\n') : '\\n\\n⚠ Réponse sans source citée : à vérifier.';\nreturn [{ json: { output: rep + pied, citations: citees.length } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8004-000000000037",
+      "name": "Je ne trouve pas",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        1000
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000000-0000-4000-8004-000000000036",
+              "name": "output",
+              "value": "Je ne trouve pas cette information dans les documents de Chêne & Cie. Vous pouvez reformuler la question, ou écrire à contact@chene-et-cie.demo.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Ajouter des documents": {
+      "main": [
+        [
+          {
+            "node": "Créer la collection si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer la collection si besoin": {
+      "main": [
+        [
+          {
+            "node": "Un élément par fichier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Un élément par fichier": {
+      "main": [
+        [
+          {
+            "node": "PDF ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF ?": {
+      "main": [
+        [
+          {
+            "node": "Extraire le texte du PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texte brut",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire le texte du PDF": {
+      "main": [
+        [
+          {
+            "node": "Texte du PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texte du PDF": {
+      "main": [
+        [
+          {
+            "node": "Rassembler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texte brut": {
+      "main": [
+        [
+          {
+            "node": "Rassembler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Rassembler": {
+      "main": [
+        [
+          {
+            "node": "Découper en passages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Découper en passages": {
+      "main": [
+        [
+          {
+            "node": "Versions déjà indexées",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Versions déjà indexées": {
+      "main": [
+        [
+          {
+            "node": "Comparer aux versions indexées",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comparer aux versions indexées": {
+      "main": [
+        [
+          {
+            "node": "À indexer ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "À indexer ?": {
+      "main": [
+        [
+          {
+            "node": "Retirer l'ancienne version",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin de l'indexation",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Retirer l'ancienne version": {
+      "main": [
+        [
+          {
+            "node": "Vecteurs sémantiques (nomic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vecteurs sémantiques (nomic)": {
+      "main": [
+        [
+          {
+            "node": "Construire les points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construire les points": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer dans Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer dans Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Fin de l'indexation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fin de l'indexation": {
+      "main": [
+        [
+          {
+            "node": "Rapport d'indexation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rapport d'indexation": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poser une question": {
+      "main": [
+        [
+          {
+            "node": "Préparer la recherche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la recherche": {
+      "main": [
+        [
+          {
+            "node": "Vecteur de la question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vecteur de la question": {
+      "main": [
+        [
+          {
+            "node": "Recherche hybride",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recherche hybride": {
+      "main": [
+        [
+          {
+            "node": "Passages candidats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Passages candidats": {
+      "main": [
+        [
+          {
+            "node": "Reclasser les passages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 · reclassement": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reclasser les passages",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclasser les passages": {
+      "main": [
+        [
+          {
+            "node": "Garder les meilleurs passages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Garder les meilleurs passages": {
+      "main": [
+        [
+          {
+            "node": "Sources pertinentes ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sources pertinentes ?": {
+      "main": [
+        [
+          {
+            "node": "Rédiger la réponse",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Je ne trouve pas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 · réponse": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Rédiger la réponse",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger la réponse": {
+      "main": [
+        [
+          {
+            "node": "Vérifier les citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}
