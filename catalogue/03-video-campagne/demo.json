@@ -1,0 +1,377 @@
+{
+  "id": "cat03VideoCampagne",
+  "name": "Catalogue 03 · Une vidéo → une campagne de contenus (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8003-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -500
+      ],
+      "parameters": {
+        "content": "## 🎬 Une vidéo → une campagne de contenus\n**Problème :** une vidéo tournée, puis plus rien. Sous-titres, article, posts, newsletter : tout est à refaire à la main, donc rarement fait.\n\n**Solution :**\n1. On dépose une vidéo (ou un audio).\n2. **Whisper**, en local, la transcrit avec des horodatages.\n3. Les **sous-titres** SRT et VTT sont générés.\n4. Une **IA locale** analyse : titre, résumé, chapitres YouTube, citations, mots-clés.\n5. Elle rédige la **campagne** : article de blog SEO, 3 posts LinkedIn, post court, newsletter.\n6. Des **contrôles** vérifient les chapitres, les citations (mot pour mot), les longueurs.\n7. Le pack complet arrive par email, en pièces jointes.\n\n*Démo sur données fictives. La version pro ajoute un dossier surveillé ou un lien YouTube comme déclencheur, les sous-titres incrustés, la publication programmée et le style de votre marque.*",
+        "width": 640,
+        "height": 440,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000002",
+      "name": "Déposer une vidéo",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Transformer une vidéo en campagne",
+        "formDescription": "Démo : déposez une vidéo ou un fichier audio. Vous recevrez sous-titres, article, posts et newsletter par email.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Vidéo ou audio",
+              "fieldName": "video",
+              "fieldType": "file",
+              "requiredField": true,
+              "multipleFiles": false,
+              "acceptFileTypes": ".mp4,.mov,.m4a,.mp3,.wav,.webm"
+            },
+            {
+              "fieldLabel": "Contexte (facultatif)",
+              "fieldName": "contexte",
+              "fieldType": "textarea",
+              "placeholder": "Ex. : tutoriel de l'atelier, public de particuliers"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Lancer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Vidéo reçue. Le pack de contenus arrive par email d'ici quelques minutes (Mailpit : http://localhost:8025)."
+            }
+          }
+        }
+      },
+      "webhookId": "3c7d2e90-4a1b-4c2d-9e3f-ca7a00000004"
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000003",
+      "name": "Préparer le fichier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Récupère la vidéo déposée et la place dans « data ».\nconst src = $('Déposer une vidéo').first();\nconst fichier = Object.values(src.binary ?? {})[0];\nif (!fichier) throw new Error('Aucun fichier reçu : déposez une vidéo ou un fichier audio.');\nreturn [{ json: { nom_fichier: fichier.fileName, contexte: src.json.contexte ?? '', public: src.json.public ?? '' }, binary: { data: fichier } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000004",
+      "name": "Transcrire (Whisper local)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/v1/audio/transcriptions",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "fr"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000005",
+      "name": "Sous-titres et repères",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Sous-titres SRT et VTT à partir des segments horodatés, et transcription repérée pour l'IA.\nconst t = $input.first().json;\nconst segs = t.segments ?? [];\nif (!segs.length) throw new Error('Transcription vide : la vidéo contient-elle de la parole ?');\nconst hms = (s, sep) => { const ms = Math.round(s * 1000); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60;\n  return [h, m, sec].map(n => String(n).padStart(2, '0')).join(':') + sep + String(ms % 1000).padStart(3, '0'); };\nconst mmss = s => { const m = Math.floor(s / 60), sec = Math.floor(s % 60); return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); };\nconst srt = segs.map((s, i) => `${i + 1}\\n${hms(s.start, ',')} --> ${hms(s.end, ',')}\\n${s.text.trim()}\\n`).join('\\n');\nconst vtt = 'WEBVTT\\n\\n' + segs.map(s => `${hms(s.start, '.')} --> ${hms(s.end, '.')}\\n${s.text.trim()}\\n`).join('\\n');\nconst reperee = segs.map(s => `[${mmss(s.start)}] ${s.text.trim()}`).join('\\n');\nconst duree = segs[segs.length - 1].end;\nconst mots = t.text.split(/\\s+/).filter(Boolean).length;\nreturn [{ json: { texte: t.text, reperee, srt, vtt, duree_s: Math.round(duree), duree: mmss(duree), mots, segments: segs.length, temps_transcription_s: t.temps_de_calcul_s ?? null } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000006",
+      "name": "Analyse de la vidéo",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "text": "=Contexte donné : {{ $('Préparer le fichier').first().json.contexte || 'aucun' }}\nDurée : {{ $json.duree }}\n\nTranscription horodatée :\n{{ $json.reperee }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"titre_video\": {\n      \"type\": \"string\",\n      \"description\": \"Titre YouTube accrocheur, 70 caractères au plus\"\n    },\n    \"resume\": {\n      \"type\": \"string\",\n      \"description\": \"Résumé en 2 phrases\"\n    },\n    \"chapitres\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"debut\": {\n            \"type\": \"string\",\n            \"description\": \"MM:SS\"\n          },\n          \"titre\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"citations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"texte\": {\n            \"type\": \"string\"\n          },\n          \"horodatage\": {\n            \"type\": \"string\",\n            \"description\": \"MM:SS\"\n          }\n        }\n      }\n    },\n    \"mots_cles\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\n    \"titre_video\",\n    \"resume\",\n    \"chapitres\",\n    \"citations\",\n    \"mots_cles\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu es éditeur de contenus. Tu analyses la transcription horodatée d'une vidéo pour préparer sa diffusion.\nRègles :\n- Appuie-toi uniquement sur ce qui est dit dans la vidéo. N'ajoute aucun fait, chiffre ou promesse.\n- Horodatages au format MM:SS, repris des repères [MM:SS] de la transcription.\n- Chapitres : de 3 à 7, le premier commence à 00:00, dans l'ordre chronologique, titres courts (6 mots au plus).\n- Citations : 3 phrases fortes reprises mot pour mot de la transcription, avec l'horodatage du segment où elles commencent.\n- Mots-clés : 5 à 8 expressions qu'un internaute taperait dans un moteur de recherche."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000007",
+      "name": "Qwen 3.6 · analyse",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        880,
+        320
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.2,
+          "numCtx": 16384,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000008",
+      "name": "Rédaction de la campagne",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        100
+      ],
+      "parameters": {
+        "text": "=Contexte donné : {{ $('Préparer le fichier').first().json.contexte || 'aucun' }}\n\nAnalyse :\n{{ JSON.stringify($json.output, null, 2) }}\n\nTranscription complète :\n{{ $('Sous-titres et repères').first().json.texte }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"article_titre\": {\n      \"type\": \"string\"\n    },\n    \"meta_description\": {\n      \"type\": \"string\"\n    },\n    \"article_markdown\": {\n      \"type\": \"string\",\n      \"description\": \"Article complet en Markdown\"\n    },\n    \"posts_linkedin\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"3 posts\"\n    },\n    \"post_court\": {\n      \"type\": \"string\"\n    },\n    \"newsletter_objet\": {\n      \"type\": \"string\"\n    },\n    \"newsletter_texte\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"article_titre\",\n    \"meta_description\",\n    \"article_markdown\",\n    \"posts_linkedin\",\n    \"post_court\",\n    \"newsletter_objet\",\n    \"newsletter_texte\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu es rédacteur web et réseaux sociaux pour une petite entreprise française. À partir de la transcription et de son analyse, tu rédiges une campagne de contenus.\nRègles :\n- Uniquement le contenu de la vidéo : pas de faits, chiffres, prix ou promesses inventés.\n- Français, ton simple, chaleureux et expert, sans jargon marketing ni superlatifs creux.\n- Article de blog : 400 à 600 mots en Markdown, un titre H1, des intertitres H2, une conclusion qui invite à regarder la vidéo. Intègre naturellement les mots-clés.\n- Meta description : 150 caractères au plus.\n- 3 posts LinkedIn différents (angle conseil, angle coulisses de l'atelier, angle question au lecteur), 600 à 900 caractères chacun, sans hashtags dans le corps, 3 hashtags à la fin.\n- Post court pour Instagram ou Facebook : 300 caractères au plus, 1 ou 2 emojis maximum.\n- Newsletter : un objet de 50 caractères au plus et un texte de 80 à 120 mots."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000009",
+      "name": "Qwen 3.6 · rédaction",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        320
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0.6,
+          "numCtx": 16384,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000010",
+      "name": "Contrôles et pack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Contrôles automatiques puis assemblage du pack (fichiers joints + récapitulatif).\nconst st = $('Sous-titres et repères').first().json;\nconst a = $('Analyse de la vidéo').first().json.output;\nconst r = $('Rédaction de la campagne').first().json.output;\nconst src = $('Préparer le fichier').first().json;\nconst sec = s => { const m = /^(\\d{1,2}):(\\d{2})$/.exec(String(s).trim()); return m ? +m[1] * 60 + +m[2] : NaN; };\nconst norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst transcription = norm(st.texte);\nconst ch = a.chapitres ?? [];\nconst nbMots = s => String(s).split(/\\s+/).filter(Boolean).length;\nconst controles = [\n  { label: 'Chapitres : premier à 00:00', ok: ch.length > 0 && sec(ch[0].debut) === 0 },\n  { label: 'Chapitres : ordre chronologique et dans la durée', ok: ch.every((c, i) => !isNaN(sec(c.debut)) && sec(c.debut) <= st.duree_s && (i === 0 || sec(c.debut) > sec(ch[i - 1].debut))) },\n  { label: 'Chapitres : 3 au minimum (exigence YouTube)', ok: ch.length >= 3 },\n  { label: 'Citations reprises mot pour mot', ok: (a.citations ?? []).length > 0 && a.citations.every(c => transcription.includes(norm(c.texte))) },\n  { label: 'Article : 400 à 600 mots', ok: nbMots(r.article_markdown) >= 380 && nbMots(r.article_markdown) <= 650, detail: nbMots(r.article_markdown) + ' mots' },\n  { label: 'Meta description : 150 caractères au plus', ok: r.meta_description.length <= 155, detail: r.meta_description.length + ' car.' },\n  { label: '3 posts LinkedIn', ok: (r.posts_linkedin ?? []).length === 3 },\n  { label: 'Post court : 300 caractères au plus', ok: r.post_court.length <= 300, detail: r.post_court.length + ' car.' },\n];\nconst aRevoir = controles.filter(c => !c.ok).map(c => c.label);\nconst chapitresYT = ch.map(c => c.debut + ' ' + c.titre).join('\\n');\nconst campagne = [\n  '# Campagne de contenus · ' + a.titre_video, '',\n  '*Source : ' + src.nom_fichier + ' · ' + st.duree + ' · ' + st.mots + ' mots transcrits*', '',\n  '## Vidéo', '', '**Titre :** ' + a.titre_video, '', '**Résumé :** ' + a.resume, '', '**Chapitres (description YouTube) :**', '', '```', chapitresYT, '```', '',\n  '**Mots-clés :** ' + a.mots_cles.join(', '), '',\n  '## Citations', '', ...a.citations.map(c => '- « ' + c.texte + ' » (' + c.horodatage + ')'), '',\n  '## LinkedIn', '', ...r.posts_linkedin.flatMap((p, i) => ['### Post ' + (i + 1), '', p, '']),\n  '## Instagram / Facebook', '', r.post_court, '',\n  '## Newsletter', '', '**Objet :** ' + r.newsletter_objet, '', r.newsletter_texte, '',\n  '## Article de blog', '', '**Meta description :** ' + r.meta_description, '', r.article_markdown, '',\n].join('\\n');\nconst fichier = async (txt, nom, type) => await this.helpers.prepareBinaryData(Buffer.from(txt, 'utf8'), nom, type);\nconst base = (src.nom_fichier || 'video').replace(/\\.[^.]+$/, '');\nreturn [{ json: { titre: a.titre_video, resume: a.resume, duree: st.duree, mots: st.mots, temps_transcription_s: st.temps_transcription_s,\n    chapitres: ch, citations: a.citations, mots_cles: a.mots_cles, posts_linkedin: r.posts_linkedin, post_court: r.post_court,\n    newsletter_objet: r.newsletter_objet, article_titre: r.article_titre, controles, a_revoir: aRevoir.join(' · ') },\n  binary: {\n    sous_titres_srt: await fichier(st.srt, base + '.srt', 'application/x-subrip'),\n    sous_titres_vtt: await fichier(st.vtt, base + '.vtt', 'text/vtt'),\n    article: await fichier(r.article_markdown, 'article-blog.md', 'text/markdown'),\n    campagne: await fichier(campagne, 'campagne-complete.md', 'text/markdown'),\n  } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8003-000000000011",
+      "name": "Envoyer le pack",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "contenus@chene-et-cie.demo",
+        "toEmail": "communication@chene-et-cie.demo",
+        "subject": "={{ $json.a_revoir ? '⚠' : '✓' }} Pack de contenus · {{ $json.titre }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Vidéo traitée automatiquement · {{ $json.duree }} · {{ $json.mots }} mots transcrits</p>\n<h2 style=\"margin:0 0 8px\">{{ $json.titre.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</h2>\n<p style=\"margin:0 0 14px;color:#3B4441\">{{ $json.resume.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</p>\n<p style=\"padding:10px 14px;border-radius:6px;background:{{ $json.a_revoir ? '#FBEDE6' : '#E7F0EC' }}\"><b>{{ $json.a_revoir ? '⚠ À revoir : ' + $json.a_revoir : '✓ Tous les contrôles sont passés' }}</b></p>\n<h3 style=\"margin:18px 0 6px\">Dans les pièces jointes</h3>\n<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6\"><li>Sous-titres <b>.srt</b> et <b>.vtt</b> (YouTube, LinkedIn, site)</li><li>Article de blog prêt à publier : « {{ $json.article_titre.replaceAll('&','&amp;').replaceAll('<','&lt;') }} »</li><li>La campagne complète : 3 posts LinkedIn, post court, newsletter, chapitres, citations, mots-clés</li></ul>\n<h3 style=\"margin:18px 0 6px\">Chapitres</h3>\n<table style=\"border-collapse:collapse;font-size:14px\">{{ $json.chapitres.map(c => '<tr><td style=\"padding:3px 14px 3px 0;color:#5E6662;font-family:monospace\">' + c.debut + '</td><td>' + c.titre.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</td></tr>').join('') }}</table>\n<h3 style=\"margin:18px 0 6px\">Aperçu · post LinkedIn n°1</h3>\n<div style=\"white-space:pre-wrap;font-size:14px;line-height:1.5;padding:12px 14px;border-left:3px solid #315C5A;background:#F5F2EA\">{{ $json.posts_linkedin[0].replaceAll('&','&amp;').replaceAll('<','&lt;') }}</div>\n<h3 style=\"margin:18px 0 6px\">Contrôles</h3>\n<table style=\"border-collapse:collapse;font-size:14px\">{{ $json.controles.map(c => '<tr><td style=\"padding:3px 8px 3px 0\">' + (c.ok ? '✅' : '⚠️') + '</td><td>' + c.label + '</td><td style=\"padding-left:10px;color:#5E6662\">' + (c.detail ?? '') + '</td></tr>').join('') }}</table>\n<p style=\"margin-top:18px;font-size:12px;color:#5E6662\">Transcription et rédaction par IA locale (Whisper et Ollama) : la vidéo n'a quitté aucun serveur. Contenus à relire avant publication. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "sous_titres_srt,sous_titres_vtt,article,campagne"
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Déposer une vidéo": {
+      "main": [
+        [
+          {
+            "node": "Préparer le fichier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le fichier": {
+      "main": [
+        [
+          {
+            "node": "Transcrire (Whisper local)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrire (Whisper local)": {
+      "main": [
+        [
+          {
+            "node": "Sous-titres et repères",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sous-titres et repères": {
+      "main": [
+        [
+          {
+            "node": "Analyse de la vidéo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 · analyse": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analyse de la vidéo",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse de la vidéo": {
+      "main": [
+        [
+          {
+            "node": "Rédaction de la campagne",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 · rédaction": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Rédaction de la campagne",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédaction de la campagne": {
+      "main": [
+        [
+          {
+            "node": "Contrôles et pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrôles et pack": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}
