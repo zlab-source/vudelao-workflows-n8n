@@ -1,0 +1,1706 @@
+{
+  "id": "cat08DemandesRgpd",
+  "name": "Catalogue 08 · Demandes RGPD automatisées (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8008-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -640
+      ],
+      "parameters": {
+        "content": "## 🛡️ Demandes RGPD automatisées\n**Problème :** une demande « supprimez mes données » arrive. Où sont-elles ? Qu'a-t-on le droit d'effacer ? Le délai légal d'un mois passe vite, et il faut garder une trace.\n\n**Solution :**\n1. Le message est lu par une **IA locale** : demande RGPD ou non, quels droits (accès, effacement, opposition, rectification, portabilité, limitation).\n2. **Registre** : référence, date, **échéance légale d'un mois**.\n3. Le demandeur **confirme par un lien** envoyé à son adresse : on vérifie qu'il en est bien le titulaire.\n4. **Recherche dans chaque outil** (ici CRM, newsletter, facturation).\n5. Plan d'actions : supprimer, ou **conserver quand la loi l'impose** (pièces comptables, 10 ans).\n6. **Le gérant valide** avant toute suppression, d'un clic.\n7. Suppressions, réponse au demandeur (avec la copie de ses données s'il l'a demandée), registre mis à jour.\n8. Chaque jour : **rappel** des demandes proches de l'échéance.\n\n*Démo sur données fictives. La version pro ajoute la boîte mail comme déclencheur et les vrais outils : HubSpot, Brevo, Mailchimp, Pennylane, Google Sheets.*",
+        "width": 720,
+        "height": 580,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000002",
+      "name": "Exercer vos droits",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Vos données personnelles",
+        "formDescription": "Démo : accès, correction, suppression ou opposition. Décrivez votre demande avec vos mots.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Prénom et nom",
+              "fieldName": "nom",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email utilisé avec nous",
+              "fieldName": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Votre demande",
+              "fieldName": "message",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Envoyer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Demande reçue. Un email vous demande de la confirmer : vérifiez votre boîte."
+            }
+          }
+        }
+      },
+      "webhookId": "8b3c6d50-ae4f-4b7a-9c8d-ca7a00000012"
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000003",
+      "name": "Reconnaître la demande",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "text": "=Message reçu de {{ $json.nom }} ({{ $json.email }}) :\n\n{{ $json.message }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"est_demande_rgpd\": {\n      \"type\": \"boolean\"\n    },\n    \"droits\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"acces\",\n          \"rectification\",\n          \"effacement\",\n          \"opposition\",\n          \"portabilite\",\n          \"limitation\"\n        ]\n      }\n    },\n    \"precisions\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"est_demande_rgpd\",\n    \"droits\",\n    \"precisions\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu lis un message reçu par une petite entreprise et tu dis s'il s'agit d'une demande d'exercice de droits au titre du RGPD.\nDroits possibles : acces (savoir quelles données sont détenues, en obtenir une copie), rectification (corriger une donnée), effacement (supprimer les données),\nopposition (ne plus recevoir de prospection, newsletter comprise), portabilite (recevoir ses données dans un format réutilisable), limitation (geler l'usage).\nUn message peut contenir plusieurs droits. Une question sur une commande, un devis ou une livraison n'est PAS une demande RGPD.\nprecisions : ce que la personne demande exactement, en une phrase, sans rien inventer (par exemple la donnée à corriger)."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000004",
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        220,
+        320
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000005",
+      "name": "Préparer la demande",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Référence, échéance légale (1 mois, art. 12.3 du RGPD), droits reconnus par l'IA.\nconst f = $('Exercer vos droits').first().json;\nconst ia = $('Reconnaître la demande').first().json.output;\nconst maintenant = $now.setZone('Europe/Paris');\nconst LIBELLES = { acces: 'accès', rectification: 'rectification', effacement: 'effacement', opposition: 'opposition', portabilite: 'portabilité', limitation: 'limitation' };\nconst droits = [...new Set((ia.droits ?? []).filter(d => LIBELLES[d]))];\nreturn [{ json: { reference: 'RGPD-' + maintenant.toFormat('yyyyLLdd-HHmmss'), nom: String(f.nom ?? '').trim(), email: String(f.email ?? '').trim().toLowerCase(),\n  message: f.message, est_rgpd: !!ia.est_demande_rgpd && droits.length > 0, droits, droits_lisibles: droits.map(d => LIBELLES[d]).join(', '),\n  precisions: ia.precisions ?? '', recue_le: maintenant.toISO(), echeance: maintenant.plus({ months: 1 }).toISODate(),\n  echeance_lisible: maintenant.plus({ months: 1 }).setLocale('fr').toFormat('d LLLL yyyy') } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000007",
+      "name": "Demande RGPD ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8008-000000000006",
+              "leftValue": "={{ $json.est_rgpd }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000008",
+      "name": "Orienter vers le service client",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "fromEmail": "donnees@chene-et-cie.demo",
+        "toEmail": "contact@chene-et-cie.demo",
+        "subject": "=Message reçu sur le formulaire RGPD, sans demande RGPD · {{ $('Préparer la demande').first().json.nom }}",
+        "emailFormat": "text",
+        "text": "=Ce message a été reçu via le formulaire « Vos données personnelles », mais l'IA n'y a pas reconnu de demande RGPD. Il n'a pas été inscrit au registre.\n\nDe : {{ $('Préparer la demande').first().json.nom }} <{{ $('Préparer la demande').first().json.email }}>\n\n{{ $('Préparer la demande').first().json.message }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000009",
+      "name": "Créer le registre si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        20
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "demandes_rgpd_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "reference",
+              "type": "string"
+            },
+            {
+              "name": "recue_le",
+              "type": "date"
+            },
+            {
+              "name": "echeance",
+              "type": "date"
+            },
+            {
+              "name": "nom",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "droits",
+              "type": "string"
+            },
+            {
+              "name": "statut",
+              "type": "string"
+            },
+            {
+              "name": "actions",
+              "type": "string"
+            },
+            {
+              "name": "repondue_le",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000010",
+      "name": "Inscrire au registre",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        20
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "demandes_rgpd_demo"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "reference": "={{ $('Préparer la demande').first().json.reference }}",
+            "recue_le": "={{ $('Préparer la demande').first().json.recue_le }}",
+            "echeance": "={{ $('Préparer la demande').first().json.echeance }}",
+            "nom": "={{ $('Préparer la demande').first().json.nom }}",
+            "email": "={{ $('Préparer la demande').first().json.email }}",
+            "droits": "={{ $('Préparer la demande').first().json.droits_lisibles }}",
+            "statut": "en attente de confirmation"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recue_le",
+              "displayName": "recue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "echeance",
+              "displayName": "echeance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "nom",
+              "displayName": "nom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "droits",
+              "displayName": "droits",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actions",
+              "displayName": "actions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "repondue_le",
+              "displayName": "repondue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000011",
+      "name": "Confirmation par le demandeur",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        20
+      ],
+      "parameters": {
+        "operation": "sendAndWait",
+        "fromEmail": "donnees@chene-et-cie.demo",
+        "toEmail": "={{ $('Préparer la demande').first().json.email }}",
+        "subject": "=Confirmez votre demande sur vos données · {{ $('Préparer la demande').first().json.reference }}",
+        "message": "=Bonjour,\n\nNous avons reçu une demande concernant vos données personnelles ({{ $('Préparer la demande').first().json.droits_lisibles }}).\nPour vérifier qu'elle vient bien de vous, confirmez-la avec le bouton ci-dessous. Sans confirmation sous 7 jours, elle sera close.\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez ce message.",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "single",
+            "approveLabel": "Je confirme ma demande"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 7,
+              "resumeUnit": "days"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000013",
+      "name": "Confirmée ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        20
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8008-000000000012",
+              "leftValue": "={{ $json.data?.approved === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000014",
+      "name": "Close sans confirmation",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        220
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "demandes_rgpd_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $('Préparer la demande').first().json.reference }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "close : non confirmée par le demandeur",
+            "actions": "aucune (non confirmée)",
+            "repondue_le": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recue_le",
+              "displayName": "recue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "echeance",
+              "displayName": "echeance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "nom",
+              "displayName": "nom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "droits",
+              "displayName": "droits",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actions",
+              "displayName": "actions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "repondue_le",
+              "displayName": "repondue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000015",
+      "name": "Chercher dans le CRM",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        -80
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "prospects_chene_et_cie_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $('Préparer la demande').first().json.email }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000016",
+      "name": "Chercher dans la newsletter",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        -80
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "newsletter_abonnes_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $('Préparer la demande').first().json.email }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000017",
+      "name": "Chercher dans la facturation",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        -80
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "gestes_commerciaux_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "client",
+              "condition": "eq",
+              "keyValue": "={{ $('Préparer la demande').first().json.nom }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000018",
+      "name": "Inventaire des données",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Ce que chaque outil contient sur la personne, et l'action prévue selon les droits exercés.\nconst d = $('Préparer la demande').first().json;\nconst lignes = n => $(n).all().map(i => i.json).filter(r => r && r.id != null);\nconst nettoyer = r => Object.fromEntries(Object.entries(r).filter(([k]) => !['id', 'createdAt', 'updatedAt'].includes(k)));\nconst veut = x => d.droits.includes(x);\nconst outils = [\n  { outil: 'CRM (prospects)', cle: 'crm', donnees: lignes('Chercher dans le CRM'),\n    action: veut('effacement') || veut('opposition') ? 'supprimer' : 'aucune', motif: veut('effacement') ? 'effacement demandé' : veut('opposition') ? 'opposition à la prospection' : '' },\n  { outil: 'Newsletter', cle: 'newsletter', donnees: lignes('Chercher dans la newsletter'),\n    action: veut('effacement') || veut('opposition') ? 'supprimer' : 'aucune', motif: veut('effacement') ? 'effacement demandé' : veut('opposition') ? 'opposition (désinscription)' : '' },\n  { outil: 'Facturation (avoirs)', cle: 'facturation', donnees: lignes('Chercher dans la facturation'),\n    action: veut('effacement') ? 'conserver' : 'aucune', motif: veut('effacement') ? 'obligation légale : pièces comptables conservées 10 ans (art. L123-22 du Code de commerce)' : '' },\n].map(o => ({ ...o, nombre: o.donnees.length, donnees: o.donnees.map(nettoyer), action: o.donnees.length ? o.action : 'aucune' }));\nconst export_ = { reference: d.reference, personne: { nom: d.nom, email: d.email }, genere_le: $now.toISO(),\n  donnees: Object.fromEntries(outils.map(o => [o.outil, o.donnees])) };\nconst fichier = await this.helpers.prepareBinaryData(Buffer.from(JSON.stringify(export_, null, 2), 'utf8'), 'mes-donnees-' + d.reference + '.json', 'application/json');\nreturn [{ json: { outils, total: outils.reduce((s, o) => s + o.nombre, 0), suppressions: outils.filter(o => o.action === 'supprimer').map(o => o.cle),\n  export_joint: veut('acces') || veut('portabilite'), rectification: veut('rectification') || veut('limitation') }, binary: { export: fichier } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000019",
+      "name": "Validation du gérant",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        -80
+      ],
+      "parameters": {
+        "operation": "sendAndWait",
+        "fromEmail": "donnees@chene-et-cie.demo",
+        "toEmail": "gerant@chene-et-cie.demo",
+        "subject": "=Demande RGPD à valider · {{ $('Préparer la demande').first().json.droits_lisibles }} · {{ $('Préparer la demande').first().json.nom }} · avant le {{ $('Préparer la demande').first().json.echeance_lisible }}",
+        "message": "=L'IA a reconnu une demande RGPD : {{ $('Préparer la demande').first().json.droits_lisibles }}.\\nDemandeur : {{ $('Préparer la demande').first().json.nom }} ({{ $('Préparer la demande').first().json.email }}), adresse confirmée par le lien envoyé.\\nRéférence : {{ $('Préparer la demande').first().json.reference }} · réponse due avant le {{ $('Préparer la demande').first().json.echeance_lisible }}.\\n\\nMessage : « {{ $('Préparer la demande').first().json.message }} »\\n\\nDonnées trouvées et actions prévues :\\n{{ $json.outils.map(o => '· ' + o.outil + ' : ' + o.nombre + ' fiche(s) → ' + (o.nombre ? o.action + (o.motif ? ' (' + o.motif + ')' : '') : 'rien')).join('\\\\n') }}{{ $json.export_joint ? '\\\\n· Copie des données jointe à la réponse (accès / portabilité)' : '' }}{{ $json.rectification ? '\\\\n· Rectification ou limitation : à faire à la main (' + $('Préparer la demande').first().json.precisions + ')' : '' }}\\n\\nValidez-vous ces actions et l'envoi de la réponse ?",
+        "responseType": "approval",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Valider et répondre",
+            "disapproveLabel": "Je m'en occupe moi-même"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 20,
+              "resumeUnit": "days"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000021",
+      "name": "Validée ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        -80
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8008-000000000020",
+              "leftValue": "={{ $json.data?.approved === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000022",
+      "name": "Reprise en main par le gérant",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3080,
+        120
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "demandes_rgpd_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $('Préparer la demande').first().json.reference }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "en cours : traitée à la main par le gérant"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recue_le",
+              "displayName": "recue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "echeance",
+              "displayName": "echeance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "nom",
+              "displayName": "nom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "droits",
+              "displayName": "droits",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actions",
+              "displayName": "actions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "repondue_le",
+              "displayName": "repondue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000023",
+      "name": "Supprimer du CRM",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3080,
+        -180
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "prospects_chene_et_cie_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $('Inventaire des données').first().json.suppressions.includes('crm') ? $('Préparer la demande').first().json.email : '«aucune suppression prévue»' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000024",
+      "name": "Supprimer de la newsletter",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        -180
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "newsletter_abonnes_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $('Inventaire des données').first().json.suppressions.includes('newsletter') ? $('Préparer la demande').first().json.email : '«aucune suppression prévue»' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000025",
+      "name": "Joindre la copie ?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        -180
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Récupère l'export (copie des données) pour la pièce jointe, seulement si l'accès ou la portabilité est demandé.\nconst inv = $('Inventaire des données').first();\nreturn [{ json: { joindre: inv.json.export_joint }, binary: inv.json.export_joint ? { export: inv.binary.export } : {} }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000026",
+      "name": "Répondre au demandeur",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3740,
+        -180
+      ],
+      "parameters": {
+        "fromEmail": "donnees@chene-et-cie.demo",
+        "toEmail": "={{ $('Préparer la demande').first().json.email }}",
+        "subject": "=Votre demande sur vos données · {{ $('Préparer la demande').first().json.reference }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:620px;color:#1D2422;line-height:1.55\">\n<p>Bonjour {{ $('Préparer la demande').first().json.nom.split(' ')[0] }},</p>\n<p>Nous avons traité votre demande ({{ $('Préparer la demande').first().json.droits_lisibles }}), référence {{ $('Préparer la demande').first().json.reference }}.</p>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px\">{{ $('Inventaire des données').first().json.outils.map(o => '<tr><td style=\"padding:6px 10px 6px 0;border-bottom:1px solid #E5DED3\"><b>' + o.outil + '</b></td><td style=\"border-bottom:1px solid #E5DED3\">' + (o.nombre === 0 ? 'aucune donnée vous concernant' : o.action === 'supprimer' ? o.nombre + ' fiche(s) supprimée(s)' : o.action === 'conserver' ? o.nombre + ' pièce(s) conservée(s) : ' + o.motif : o.nombre + ' fiche(s), voir la copie jointe') + '</td></tr>').join('') }}</table>\n{{ $('Inventaire des données').first().json.export_joint ? '<p>Vous trouverez en pièce jointe la copie de toutes les données que nous détenons sur vous, dans un format réutilisable (JSON).</p>' : '' }}\n{{ $('Inventaire des données').first().json.rectification ? '<p>Votre demande de rectification est en cours : nous revenons vers vous dès qu\\'elle est faite.</p>' : '' }}\n<p style=\"font-size:13px;color:#5E6662\">Si cette réponse ne vous satisfait pas, vous pouvez introduire une réclamation auprès de la CNIL (cnil.fr).</p>\n<p>L'atelier Chêne &amp; Cie</p></div>",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "={{ $json.joindre ? 'export' : '' }}",
+          "ccEmail": "gerant@chene-et-cie.demo"
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000027",
+      "name": "Clore au registre",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3960,
+        -180
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "demandes_rgpd_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $('Préparer la demande').first().json.reference }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "traitée",
+            "actions": "={{ $('Inventaire des données').first().json.outils.map(o => o.outil + ' : ' + (o.nombre ? o.action : 'rien')).join(' · ') + ($('Inventaire des données').first().json.export_joint ? ' · copie envoyée' : '') }}",
+            "repondue_le": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recue_le",
+              "displayName": "recue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "echeance",
+              "displayName": "echeance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "nom",
+              "displayName": "nom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "droits",
+              "displayName": "droits",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "actions",
+              "displayName": "actions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "repondue_le",
+              "displayName": "repondue_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000028",
+      "name": "Chaque matin à 8 h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        860
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000029",
+      "name": "Demandes en cours",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        940
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "demandes_rgpd_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "statut",
+              "condition": "neq",
+              "keyValue": "traitée"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000030",
+      "name": "Proches de l'échéance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        940
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Demandes non closes dont l'échéance légale tombe dans les 7 jours (ou est dépassée).\nconst ref = $now.setZone('Europe/Paris');\nconst urgentes = $input.all().map(i => i.json).filter(r => r && r.reference && !String(r.statut).startsWith('close'))\n  .map(r => ({ ...r, jours: Math.ceil(DateTime.fromISO(String(r.echeance)).diff(ref.startOf('day'), 'days').days) })).filter(r => r.jours <= 7);\nreturn urgentes.length ? [{ json: { urgentes, reference: ref.toISODate() } }] : [];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000031",
+      "name": "Alerter le gérant",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        680,
+        940
+      ],
+      "parameters": {
+        "fromEmail": "donnees@chene-et-cie.demo",
+        "toEmail": "gerant@chene-et-cie.demo",
+        "subject": "=⏰ RGPD · {{ $json.urgentes.length }} demande(s) à traiter sous 7 jours",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#1D2422\"><h2 style=\"margin:0 0 8px\">Demandes RGPD proches de l'échéance</h2><p>Le RGPD impose de répondre dans le mois. Au {{ $json.reference }} :</p><ul>{{ $json.urgentes.map(r => '<li><b>' + r.reference + '</b> · ' + r.nom + ' · ' + r.droits + ' · ' + r.statut + ' · ' + (r.jours < 0 ? '<b style=\"color:#C0503A\">échéance dépassée de ' + (-r.jours) + ' jour(s)</b>' : 'reste ' + r.jours + ' jour(s)') + '</li>').join('') }}</ul></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000032",
+      "name": "Préparer les données de démo",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        1300
+      ],
+      "parameters": {
+        "formTitle": "Préparer les données de démonstration",
+        "formDescription": "Crée la table « newsletter » fictive et y inscrit 3 abonnés.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Confirmer",
+              "fieldName": "ok",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Oui"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Données de démonstration prêtes."
+            }
+          }
+        }
+      },
+      "webhookId": "8b3c6d50-ae4f-4b7a-9c8d-ca7a00000014"
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000033",
+      "name": "Créer la newsletter si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1300
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "newsletter_abonnes_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "prenom",
+              "type": "string"
+            },
+            {
+              "name": "inscrit_le",
+              "type": "date"
+            },
+            {
+              "name": "source",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000034",
+      "name": "Abonnés fictifs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [['claire.fontaine@client.demo', 'Claire', '2026-03-12'], ['martine.roux@exemple.demo', 'Martine', '2026-09-30'], ['ines.royer@client.demo', 'Inès', '2026-06-02']]\n  .map(([email, prenom, inscrit_le]) => ({ json: { email, prenom, inscrit_le, source: 'formulaire du site (démo)' } }));"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8008-000000000035",
+      "name": "Inscrire les abonnés",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        1300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "newsletter_abonnes_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {},
+          "schema": [
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "prenom",
+              "displayName": "prenom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "inscrit_le",
+              "displayName": "inscrit_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Exercer vos droits": {
+      "main": [
+        [
+          {
+            "node": "Reconnaître la demande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reconnaître la demande",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconnaître la demande": {
+      "main": [
+        [
+          {
+            "node": "Préparer la demande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la demande": {
+      "main": [
+        [
+          {
+            "node": "Demande RGPD ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demande RGPD ?": {
+      "main": [
+        [
+          {
+            "node": "Créer le registre si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Orienter vers le service client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer le registre si besoin": {
+      "main": [
+        [
+          {
+            "node": "Inscrire au registre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inscrire au registre": {
+      "main": [
+        [
+          {
+            "node": "Confirmation par le demandeur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmation par le demandeur": {
+      "main": [
+        [
+          {
+            "node": "Confirmée ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmée ?": {
+      "main": [
+        [
+          {
+            "node": "Chercher dans le CRM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Close sans confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chercher dans le CRM": {
+      "main": [
+        [
+          {
+            "node": "Chercher dans la newsletter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chercher dans la newsletter": {
+      "main": [
+        [
+          {
+            "node": "Chercher dans la facturation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chercher dans la facturation": {
+      "main": [
+        [
+          {
+            "node": "Inventaire des données",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inventaire des données": {
+      "main": [
+        [
+          {
+            "node": "Validation du gérant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation du gérant": {
+      "main": [
+        [
+          {
+            "node": "Validée ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validée ?": {
+      "main": [
+        [
+          {
+            "node": "Supprimer du CRM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reprise en main par le gérant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supprimer du CRM": {
+      "main": [
+        [
+          {
+            "node": "Supprimer de la newsletter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supprimer de la newsletter": {
+      "main": [
+        [
+          {
+            "node": "Joindre la copie ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Joindre la copie ?": {
+      "main": [
+        [
+          {
+            "node": "Répondre au demandeur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Répondre au demandeur": {
+      "main": [
+        [
+          {
+            "node": "Clore au registre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chaque matin à 8 h": {
+      "main": [
+        [
+          {
+            "node": "Demandes en cours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demandes en cours": {
+      "main": [
+        [
+          {
+            "node": "Proches de l'échéance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Proches de l'échéance": {
+      "main": [
+        [
+          {
+            "node": "Alerter le gérant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer les données de démo": {
+      "main": [
+        [
+          {
+            "node": "Créer la newsletter si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer la newsletter si besoin": {
+      "main": [
+        [
+          {
+            "node": "Abonnés fictifs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonnés fictifs": {
+      "main": [
+        [
+          {
+            "node": "Inscrire les abonnés",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

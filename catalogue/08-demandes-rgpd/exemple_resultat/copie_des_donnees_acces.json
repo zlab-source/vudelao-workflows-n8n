@@ -1,0 +1,39 @@
+{
+  "reference": "RGPD-20261006-101701",
+  "personne": {
+    "nom": "Martine Roux",
+    "email": "martine.roux@exemple.demo"
+  },
+  "genere_le": "2026-10-06T10:17:02.500+02:00",
+  "donnees": {
+    "CRM (prospects)": [
+      {
+        "email": "martine.roux@exemple.demo",
+        "nom": "Martine Roux",
+        "type": "particulier",
+        "entreprise": "",
+        "commune": "La Chapelle-aux-Brocs",
+        "distance_km": 9,
+        "siren": "",
+        "registre": "particulier",
+        "score": 94,
+        "categorie": "chaud",
+        "besoin": "Remplacement de 6 fenêtres en chêne double vitrage et d'une porte d'entrée avant l'hiver.",
+        "nb_demandes": 1,
+        "premiere_demande": "2026-10-06T08:09:30.393Z",
+        "dernier_contact": "2026-10-06T08:09:30.393Z",
+        "base_legale": "mesures précontractuelles (demande du prospect)",
+        "conservation_jusqua": "2029-10-05T22:00:00.000Z"
+      }
+    ],
+    "Newsletter": [
+      {
+        "email": "martine.roux@exemple.demo",
+        "prenom": "Martine",
+        "inscrit_le": "2026-09-29T22:00:00.000Z",
+        "source": "formulaire du site (démo)"
+      }
+    ],
+    "Facturation (avoirs)": []
+  }
+}
