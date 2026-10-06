@@ -25,6 +25,7 @@ Toutes les données sont **fictives** (entreprise de démonstration « Chêne & 
 | [`04-rag-avance`](catalogue/04-rag-avance/) | Assistant documentaire : recherche hybride (sens + mots-clés), reclassement par IA, réponses sourcées et citations vérifiées, mise à jour automatique des documents modifiés. |
 | [`05-compte-rendu-reunion`](catalogue/05-compte-rendu-reunion/) | Un enregistrement de réunion transcrit en local devient un compte rendu : décisions, tâches avec responsable et échéance, fichier agenda (.ics), envoyé à tous les participants. |
 | [`06-sauvegarde-github`](catalogue/06-sauvegarde-github/) | Sauvegarde nocturne des workflows n8n dans GitHub : un commit daté, clés en clair masquées, données épinglées retirées, restauration de n'importe quelle version en copie inactive. |
+| [`07-prospects-crm`](catalogue/07-prospects-crm/) | Demandes de devis notées sur 100 (IA pour le besoin, points fixes pour le reste), API publiques (distance, registre des entreprises), CRM sans doublon, purge RGPD automatique. |
 
 ### `supervision/` · surveiller les automatisations de plusieurs clients
 

@@ -1,0 +1,1398 @@
+{
+  "id": "cat07ProspectsCrm",
+  "name": "Catalogue 07 · Prospects : qualification IA → CRM, version RGPD (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8007-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -620
+      ],
+      "parameters": {
+        "content": "## 🎯 Prospects : qualification IA → CRM (version française, RGPD)\n**Problème :** les demandes arrivent en vrac. Les bonnes attendent, le spam fait perdre du temps, et le fichier prospects grossit sans jamais être purgé.\n\n**Solution :**\n1. Formulaire de contact avec information RGPD.\n2. Contrôles sans IA : adresse, SIREN (clé de Luhn).\n3. **API publiques gratuites** : distance du chantier à l'atelier (geo.api.gouv.fr) ; pour un professionnel, **registre des entreprises** (vérifiée, active, effectif, activité ; jamais les dirigeants).\n4. **L'IA ne note que le besoin** ; budget, délai, zone et fiabilité ont des points fixes : un score sur 100 **expliqué ligne par ligne**. Hors zone : écarté du suivi commercial.\n5. Dédoublonnage : un prospect connu est mis à jour, pas recréé.\n6. Chaud ou tiède : fiche au commercial avec un **brouillon de réponse à relire** (jamais envoyé seul). Spam : ni enregistré, ni répondu.\n\n*Régler l'offre, l'adresse de l'atelier et la zone dans le nœud **Réglages**.*\n7. **Purge RGPD** chaque nuit : 3 ans après le dernier échange (recommandation CNIL), avec un mode simulation.\n\n*Démo sur données fictives. La version pro ajoute HubSpot, Pipedrive, Axonaut ou Sellsy, la séquence de relance des tièdes et le registre des traitements tenu à jour.*",
+        "width": 720,
+        "height": 560,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000002",
+      "name": "Demande de contact",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Demande de devis · Chêne & Cie",
+        "formDescription": "Démo : formulaire de contact du site d'un artisan. Réponse sous 48 h ouvrées.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Prénom et nom",
+              "fieldName": "nom",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldName": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Vous êtes",
+              "fieldName": "type",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Particulier"
+                  },
+                  {
+                    "option": "Professionnel"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Entreprise (professionnels)",
+              "fieldName": "entreprise"
+            },
+            {
+              "fieldLabel": "SIREN (professionnels, facultatif)",
+              "fieldName": "siren",
+              "placeholder": "9 chiffres"
+            },
+            {
+              "fieldLabel": "Code postal du chantier",
+              "fieldName": "code_postal",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Votre projet",
+              "fieldName": "besoin",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Budget envisagé",
+              "fieldName": "budget",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Moins de 2 000 €"
+                  },
+                  {
+                    "option": "De 2 000 à 10 000 €"
+                  },
+                  {
+                    "option": "De 10 000 à 30 000 €"
+                  },
+                  {
+                    "option": "Plus de 30 000 €"
+                  },
+                  {
+                    "option": "Je ne sais pas encore"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Délai",
+              "fieldName": "delai",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Moins d'un mois"
+                  },
+                  {
+                    "option": "De 1 à 3 mois"
+                  },
+                  {
+                    "option": "Plus tard"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Vos données",
+              "fieldName": "rgpd",
+              "fieldType": "checkbox",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "J'ai lu que mes données servent uniquement à répondre à ma demande et sont conservées 3 ans après le dernier échange."
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Envoyer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Merci, votre demande est bien reçue. Un email de confirmation vient de partir."
+            }
+          }
+        }
+      },
+      "webhookId": "7a2b5c40-9d3e-4a6f-8b7c-ca7a00000010"
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000003",
+      "name": "Réglages",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        110,
+        280
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"entreprise\": \"Chêne & Cie\",\n  \"offre\": \"Menuiserie bois sur mesure : fenêtres et portes-fenêtres, portes d'entrée, escaliers, agencements intérieurs, pose et entretien. Particuliers et professionnels.\",\n  \"atelier\": {\n    \"code_postal\": \"19100\",\n    \"lat\": 45.145,\n    \"lon\": 1.5144\n  },\n  \"zone_km\": 60,\n  \"commercial\": \"commercial@chene-et-cie.demo\"\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000004",
+      "name": "Créer la table si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "prospects_chene_et_cie_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "nom",
+              "type": "string"
+            },
+            {
+              "name": "type",
+              "type": "string"
+            },
+            {
+              "name": "entreprise",
+              "type": "string"
+            },
+            {
+              "name": "commune",
+              "type": "string"
+            },
+            {
+              "name": "distance_km",
+              "type": "number"
+            },
+            {
+              "name": "siren",
+              "type": "string"
+            },
+            {
+              "name": "registre",
+              "type": "string"
+            },
+            {
+              "name": "score",
+              "type": "number"
+            },
+            {
+              "name": "categorie",
+              "type": "string"
+            },
+            {
+              "name": "besoin",
+              "type": "string"
+            },
+            {
+              "name": "nb_demandes",
+              "type": "number"
+            },
+            {
+              "name": "premiere_demande",
+              "type": "date"
+            },
+            {
+              "name": "dernier_contact",
+              "type": "date"
+            },
+            {
+              "name": "base_legale",
+              "type": "string"
+            },
+            {
+              "name": "conservation_jusqua",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000005",
+      "name": "Normaliser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Contrôles simples, sans IA : adresse, SIREN (clé de Luhn), consentement à l'information RGPD.\nconst f = $('Demande de contact').first().json;\nconst email = String(f.email ?? '').trim().toLowerCase();\nif (!/^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$/.test(email)) throw new Error('Adresse email invalide : ' + email);\nconst PERSO = ['gmail.com', 'yahoo.fr', 'yahoo.com', 'hotmail.com', 'hotmail.fr', 'outlook.com', 'outlook.fr', 'live.fr', 'orange.fr', 'free.fr', 'sfr.fr', 'laposte.net', 'wanadoo.fr', 'icloud.com', 'gmx.fr'];\nconst siren = String(f.siren ?? '').replace(/\\D/g, '');\nconst luhn = s => { let t = 0; for (let i = 0; i < s.length; i++) { let n = +s[s.length - 1 - i]; if (i % 2) { n *= 2; if (n > 9) n -= 9; } t += n; } return t % 10 === 0; };\nconst consentement = [].concat(f.rgpd ?? []).length > 0;\nif (!consentement) throw new Error('Information RGPD non acceptée : la demande ne peut pas être traitée.');\nconst code_postal = String(f.code_postal ?? '').trim();\nif (!/^\\d{5}$/.test(code_postal)) throw new Error('Code postal invalide : ' + code_postal);\nconst pro = f.type === 'Professionnel';\nreturn [{ json: { nom: String(f.nom ?? '').trim(), email, type: pro ? 'professionnel' : 'particulier', entreprise: pro ? String(f.entreprise ?? '').trim() : '', code_postal,\n  siren: pro && siren.length === 9 && luhn(siren) ? siren : '', siren_saisi: pro ? siren : '', budget: f.budget, delai: f.delai, besoin: String(f.besoin ?? '').trim(),\n  adresse_perso: pro && PERSO.includes(email.split('@')[1]) } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000006",
+      "name": "Registre des entreprises",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "url": "https://recherche-entreprises.api.gouv.fr/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.siren || $json.entreprise || 'x' }}"
+            },
+            {
+              "name": "per_page",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000007",
+      "name": "Commune du chantier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        770,
+        280
+      ],
+      "parameters": {
+        "url": "https://geo.api.gouv.fr/communes",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "codePostal",
+              "value": "={{ $('Normaliser').first().json.code_postal }}"
+            },
+            {
+              "name": "fields",
+              "value": "nom,centre"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000008",
+      "name": "Fiche entreprise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        990,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Fiche entreprise du registre public : uniquement des données sur l'entreprise (jamais les dirigeants).\nconst d = $('Normaliser').first().json;\nconst reg = $('Réglages').first().json;\nconst res = d.type === 'professionnel' ? ($('Registre des entreprises').first().json.results ?? []) : [];\nconst TRANCHES = { NN: 'non renseigné', '00': '0 salarié', '01': '1 ou 2', '02': '3 à 5', '03': '6 à 9', '11': '10 à 19', '12': '20 à 49', '21': '50 à 99', '22': '100 à 199', '31': '200 à 249', '32': '250 à 499', '41': '500 à 999', '42': '1 000 à 1 999', '51': '2 000 à 4 999', '52': '5 000 à 9 999', '53': '10 000 et plus' };\nconst norm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]/g, '');\nlet r = null;\nif (d.siren) r = res.find(x => x.siren === d.siren) ?? null;\nelse if (d.entreprise) r = res.find(x => (!d.code_postal || x.siege?.code_postal === d.code_postal) && (norm(x.nom_complet).includes(norm(d.entreprise)) || norm(d.entreprise).includes(norm(x.nom_raison_sociale)))) ?? null;\nconst fiche = r ? { trouvee: true, siren: r.siren, nom: r.nom_complet, naf: r.activite_principale, categorie: r.categorie_entreprise,\n  effectif: TRANCHES[r.tranche_effectif_salarie] ?? 'non renseigné', commune: r.siege?.libelle_commune ?? '', active: r.etat_administratif === 'A', creation: r.date_creation }\n  : { trouvee: false };\nconst registre = d.type !== 'professionnel' ? 'particulier' : !fiche.trouvee ? 'introuvable' : fiche.active ? 'vérifiée, active' : 'trouvée, mais cessée';\n// Distance à vol d'oiseau entre l'atelier et la commune du chantier (centre de la commune, API géographique publique)\nconst commune = ($('Commune du chantier').first().json.body ?? $('Commune du chantier').all().map(i => i.json))[0] ?? $('Commune du chantier').first().json;\nconst c = commune?.centre?.coordinates;\nconst rad = x => x * Math.PI / 180;\nconst km = c ? Math.round(2 * 6371 * Math.asin(Math.sqrt(Math.sin(rad(c[1] - reg.atelier.lat) / 2) ** 2 + Math.cos(rad(reg.atelier.lat)) * Math.cos(rad(c[1])) * Math.sin(rad(c[0] - reg.atelier.lon) / 2) ** 2))) : null;\nreturn [{ json: { ...d, fiche, registre, commune: commune?.nom ?? 'inconnue', distance_km: km } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000009",
+      "name": "Qualifier le besoin",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "text": "=Offre de {{ $('Réglages').first().json.entreprise }} : {{ $('Réglages').first().json.offre }}\n\nDemandeur : {{ $json.type }}{{ $json.entreprise ? ' · ' + $json.entreprise : '' }}{{ $json.fiche.trouvee ? ' · activité NAF ' + $json.fiche.naf : '' }}\n\nMessage :\n{{ $json.besoin }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"adequation\": {\n      \"type\": \"number\"\n    },\n    \"justification\": {\n      \"type\": \"string\",\n      \"description\": \"Pourquoi cette note, en une phrase\"\n    },\n    \"spam\": {\n      \"type\": \"boolean\"\n    },\n    \"resume\": {\n      \"type\": \"string\"\n    },\n    \"questions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"reponse\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"adequation\",\n    \"justification\",\n    \"spam\",\n    \"resume\",\n    \"questions\",\n    \"reponse\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu qualifies une demande reçue par une petite entreprise, dont l'offre est décrite dans le message.\nTu n'évalues QUE le besoin exprimé ; le budget, le délai, la distance et l'entreprise sont notés à part, sans toi.\n\n- adequation (0 à 40) : 40 = projet clair et au cœur de l'offre ; 20 = projet flou ou seulement en partie couvert ; 0 = hors sujet (candidature, démarchage, simple curiosité).\n- spam : vrai pour une prospection commerciale reçue (référencement, backlinks, crypto, sous-traitance offshore), un message automatique ou incohérent.\n- resume : le besoin en une phrase, sans inventer.\n- questions : 2 questions précises à poser pour cadrer le besoin.\n- reponse : un brouillon de réponse au prospect, en français, vouvoiement, 90 mots au plus, au nom de l'entreprise (« nous »), signé du nom de l'entreprise. Il reformule le projet et propose la suite (une visite ou des précisions par écrit). Aucun prix, aucun délai, aucune promesse.\nSois factuel : n'invente rien sur l'entreprise."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000010",
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        320
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000011",
+      "name": "Déjà dans le CRM ?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "prospects_chene_et_cie_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $('Fiche entreprise').first().json.email }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000012",
+      "name": "Score et dédoublonnage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Score final : la note de l'IA (besoin) + des points fixes et vérifiables (budget, délai, taille, registre).\nconst d = $('Fiche entreprise').first().json;\nconst ia = $('Qualifier le besoin').first().json.output;\nconst reg = $('Réglages').first().json;\nconst BUDGET = { 'Moins de 2 000 €': 6, 'De 2 000 à 10 000 €': 15, 'De 10 000 à 30 000 €': 20, 'Plus de 30 000 €': 20, 'Je ne sais pas encore': 8 };\nconst DELAI = { 'Moins d\\'un mois': 15, 'De 1 à 3 mois': 12, 'Plus tard': 5 };\nconst FIABILITE = { 'particulier': 7, 'vérifiée, active': 10, 'introuvable': 4, 'trouvée, mais cessée': 0 };\nconst dk = d.distance_km;\nconst zone = dk == null ? 6 : dk <= reg.zone_km ? 15 : dk <= reg.zone_km * 1.5 ? 6 : 0;\nconst detail = [\n  ['Besoin (IA)', Math.max(0, Math.min(40, Math.round(ia.adequation))), 40, ia.justification],\n  ['Budget', BUDGET[d.budget] ?? 8, 20, d.budget],\n  ['Délai', DELAI[d.delai] ?? 5, 15, d.delai],\n  ['Zone', zone, 15, dk == null ? 'commune inconnue' : d.commune + ' · ' + dk + ' km de l\\'atelier'],\n  ['Fiabilité', FIABILITE[d.registre] ?? 4, 10, d.registre + (d.fiche.trouvee ? ' · ' + d.fiche.nom : '')],\n].map(([critere, points, max, motif]) => ({ critere, points, max, motif }));\nlet score = detail.reduce((s, x) => s + x.points, 0);\nconst alertes = [];\nif (d.adresse_perso) { score -= 5; alertes.push('adresse email personnelle'); }\nif (d.siren_saisi && !d.siren) alertes.push('SIREN saisi invalide');\nif (d.registre === 'trouvée, mais cessée') alertes.push('entreprise cessée au registre');\nconst horsZone = dk != null && dk > reg.zone_km * 1.5;\nif (horsZone) alertes.push('hors zone : ' + dk + ' km (zone de ' + reg.zone_km + ' km)');\nscore = Math.max(0, Math.min(100, score));\nconst categorie = ia.spam ? 'écarté' : horsZone ? 'hors zone' : score >= 70 ? 'chaud' : score >= 40 ? 'tiède' : 'froid';\n\n// Dédoublonnage : même adresse = même prospect, on met à jour sa fiche.\nconst ancien = $('Déjà dans le CRM ?').all().map(i => i.json).find(r => r && r.email === d.email);\nconst maintenant = $now.setZone('Europe/Paris');\nreturn [{ json: { ...d, score, categorie, detail, alertes, resume: ia.resume, questions: ia.questions ?? [], reponse: ia.reponse,\n  nb_demandes: (ancien?.nb_demandes ?? 0) + 1, premiere_demande: ancien?.premiere_demande ?? maintenant.toISO(),\n  dernier_contact: maintenant.toISO(), conservation_jusqua: maintenant.plus({ years: 3 }).toISODate(), deja_connu: !!ancien } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000014",
+      "name": "Pas un spam ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1650,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8007-000000000013",
+              "leftValue": "={{ $json.categorie }}",
+              "rightValue": "écarté",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000015",
+      "name": "Enregistrer dans le CRM",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "prospects_chene_et_cie_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "condition": "eq",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "email": "={{ $json.email }}",
+            "nom": "={{ $json.nom }}",
+            "type": "={{ $json.type }}",
+            "entreprise": "={{ $json.entreprise }}",
+            "commune": "={{ $json.commune }}",
+            "distance_km": "={{ $json.distance_km }}",
+            "siren": "={{ $json.fiche.siren ?? $json.siren }}",
+            "registre": "={{ $json.registre }}",
+            "score": "={{ $json.score }}",
+            "categorie": "={{ $json.categorie }}",
+            "besoin": "={{ $json.resume }}",
+            "nb_demandes": "={{ $json.nb_demandes }}",
+            "premiere_demande": "={{ $json.premiere_demande }}",
+            "dernier_contact": "={{ $json.dernier_contact }}",
+            "base_legale": "mesures précontractuelles (demande du prospect)",
+            "conservation_jusqua": "={{ $json.conservation_jusqua }}"
+          },
+          "schema": [
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "nom",
+              "displayName": "nom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "entreprise",
+              "displayName": "entreprise",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commune",
+              "displayName": "commune",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "distance_km",
+              "displayName": "distance_km",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "siren",
+              "displayName": "siren",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "registre",
+              "displayName": "registre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "categorie",
+              "displayName": "categorie",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "besoin",
+              "displayName": "besoin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "nb_demandes",
+              "displayName": "nb_demandes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "premiere_demande",
+              "displayName": "premiere_demande",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "dernier_contact",
+              "displayName": "dernier_contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "base_legale",
+              "displayName": "base_legale",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "conservation_jusqua",
+              "displayName": "conservation_jusqua",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000018",
+      "name": "Selon la catégorie",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1980,
+        100
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8007-000000000016",
+                    "leftValue": "={{ $('Score et dédoublonnage').first().json.categorie }}",
+                    "rightValue": "chaud",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "chaud"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8007-000000000017",
+                    "leftValue": "={{ $('Score et dédoublonnage').first().json.categorie }}",
+                    "rightValue": "tiède",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tiède"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "froid ou hors zone"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000019",
+      "name": "Alerte commerciale (chaud)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        -60
+      ],
+      "parameters": {
+        "fromEmail": "prospects@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.commercial }}",
+        "subject": "=🔥 Prospect chaud · {{ $('Score et dédoublonnage').first().json.score }}/100 · {{ $('Score et dédoublonnage').first().json.entreprise || $('Score et dédoublonnage').first().json.nom }} · à rappeler aujourd'hui",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Nouvelle demande{{ $('Score et dédoublonnage').first().json.deja_connu ? ' · déjà connu (' + $('Score et dédoublonnage').first().json.nb_demandes + 'e demande)' : '' }}</p>\n<h2 style=\"margin:0 0 4px\">{{ $('Score et dédoublonnage').first().json.nom.replaceAll('&','&amp;').replaceAll('<','&lt;') }}{{ $('Score et dédoublonnage').first().json.entreprise ? ' · ' + $('Score et dédoublonnage').first().json.entreprise.replaceAll('&','&amp;').replaceAll('<','&lt;') : ' · particulier' }}</h2>\n<p style=\"margin:0 0 14px\"><b style=\"font-size:22px\">{{ $('Score et dédoublonnage').first().json.score }}/100</b> &nbsp;<span style=\"padding:3px 10px;border-radius:99px;color:#fff;background:{{ $('Score et dédoublonnage').first().json.categorie === 'chaud' ? '#C0503A' : $('Score et dédoublonnage').first().json.categorie === 'tiède' ? '#D9963B' : '#5E6662' }}\">{{ $('Score et dédoublonnage').first().json.categorie }}</span></p>\n<p style=\"margin:0 0 12px\"><b>Besoin :</b> {{ $('Score et dédoublonnage').first().json.resume.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</p>\n{{ $('Score et dédoublonnage').first().json.alertes.length ? '<p style=\"padding:8px 12px;border-radius:6px;background:#FBEDE6\">⚠ ' + $('Score et dédoublonnage').first().json.alertes.join(' · ') + '</p>' : '' }}\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">{{ $('Score et dédoublonnage').first().json.detail.map(x => '<tr><td style=\"padding:4px 10px 4px 0;white-space:nowrap\">' + x.critere + '</td><td style=\"white-space:nowrap;padding-right:10px\"><b>' + x.points + '</b>/' + x.max + '</td><td style=\"color:#5E6662\">' + String(x.motif ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;') + '</td></tr>').join('') }}</table>\n{{ $('Score et dédoublonnage').first().json.fiche.trouvee ? '<p style=\"margin-top:12px;font-size:14px\"><b>Registre :</b> ' + $('Score et dédoublonnage').first().json.fiche.nom.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' · SIREN ' + $('Score et dédoublonnage').first().json.fiche.siren + ' · ' + $('Score et dédoublonnage').first().json.fiche.commune + ' · ' + $('Score et dédoublonnage').first().json.fiche.effectif + ' salariés · NAF ' + $('Score et dédoublonnage').first().json.fiche.naf + ' · créée le ' + $('Score et dédoublonnage').first().json.fiche.creation + '</p>' : '' }}\n<h3 style=\"margin:16px 0 6px\">Questions à poser</h3><ul style=\"margin:0;padding-left:18px;font-size:14px\">{{ $('Score et dédoublonnage').first().json.questions.map(q => '<li>' + q.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') }}</ul>\n<h3 style=\"margin:16px 0 6px\">Brouillon de réponse (à relire avant envoi)</h3>\n<div style=\"white-space:pre-wrap;font-size:14px;line-height:1.5;padding:12px 14px;border-left:3px solid #315C5A;background:#F5F2EA\">{{ $('Score et dédoublonnage').first().json.reponse.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</div>\n<p style=\"margin-top:16px;font-size:12px;color:#5E6662\">Contact : {{ $('Score et dédoublonnage').first().json.email }} · fiche CRM conservée jusqu'au {{ $('Score et dédoublonnage').first().json.conservation_jusqua }} (3 ans après le dernier échange), puis supprimée automatiquement. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000020",
+      "name": "Fiche au commercial (tiède)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        120
+      ],
+      "parameters": {
+        "fromEmail": "prospects@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.commercial }}",
+        "subject": "=Prospect tiède · {{ $('Score et dédoublonnage').first().json.score }}/100 · {{ $('Score et dédoublonnage').first().json.entreprise || $('Score et dédoublonnage').first().json.nom }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Nouvelle demande{{ $('Score et dédoublonnage').first().json.deja_connu ? ' · déjà connu (' + $('Score et dédoublonnage').first().json.nb_demandes + 'e demande)' : '' }}</p>\n<h2 style=\"margin:0 0 4px\">{{ $('Score et dédoublonnage').first().json.nom.replaceAll('&','&amp;').replaceAll('<','&lt;') }}{{ $('Score et dédoublonnage').first().json.entreprise ? ' · ' + $('Score et dédoublonnage').first().json.entreprise.replaceAll('&','&amp;').replaceAll('<','&lt;') : ' · particulier' }}</h2>\n<p style=\"margin:0 0 14px\"><b style=\"font-size:22px\">{{ $('Score et dédoublonnage').first().json.score }}/100</b> &nbsp;<span style=\"padding:3px 10px;border-radius:99px;color:#fff;background:{{ $('Score et dédoublonnage').first().json.categorie === 'chaud' ? '#C0503A' : $('Score et dédoublonnage').first().json.categorie === 'tiède' ? '#D9963B' : '#5E6662' }}\">{{ $('Score et dédoublonnage').first().json.categorie }}</span></p>\n<p style=\"margin:0 0 12px\"><b>Besoin :</b> {{ $('Score et dédoublonnage').first().json.resume.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</p>\n{{ $('Score et dédoublonnage').first().json.alertes.length ? '<p style=\"padding:8px 12px;border-radius:6px;background:#FBEDE6\">⚠ ' + $('Score et dédoublonnage').first().json.alertes.join(' · ') + '</p>' : '' }}\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">{{ $('Score et dédoublonnage').first().json.detail.map(x => '<tr><td style=\"padding:4px 10px 4px 0;white-space:nowrap\">' + x.critere + '</td><td style=\"white-space:nowrap;padding-right:10px\"><b>' + x.points + '</b>/' + x.max + '</td><td style=\"color:#5E6662\">' + String(x.motif ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;') + '</td></tr>').join('') }}</table>\n{{ $('Score et dédoublonnage').first().json.fiche.trouvee ? '<p style=\"margin-top:12px;font-size:14px\"><b>Registre :</b> ' + $('Score et dédoublonnage').first().json.fiche.nom.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' · SIREN ' + $('Score et dédoublonnage').first().json.fiche.siren + ' · ' + $('Score et dédoublonnage').first().json.fiche.commune + ' · ' + $('Score et dédoublonnage').first().json.fiche.effectif + ' salariés · NAF ' + $('Score et dédoublonnage').first().json.fiche.naf + ' · créée le ' + $('Score et dédoublonnage').first().json.fiche.creation + '</p>' : '' }}\n<h3 style=\"margin:16px 0 6px\">Questions à poser</h3><ul style=\"margin:0;padding-left:18px;font-size:14px\">{{ $('Score et dédoublonnage').first().json.questions.map(q => '<li>' + q.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') }}</ul>\n<h3 style=\"margin:16px 0 6px\">Brouillon de réponse (à relire avant envoi)</h3>\n<div style=\"white-space:pre-wrap;font-size:14px;line-height:1.5;padding:12px 14px;border-left:3px solid #315C5A;background:#F5F2EA\">{{ $('Score et dédoublonnage').first().json.reponse.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</div>\n<p style=\"margin-top:16px;font-size:12px;color:#5E6662\">Contact : {{ $('Score et dédoublonnage').first().json.email }} · fiche CRM conservée jusqu'au {{ $('Score et dédoublonnage').first().json.conservation_jusqua }} (3 ans après le dernier échange), puis supprimée automatiquement. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000021",
+      "name": "Rassembler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2460,
+        120
+      ],
+      "parameters": {
+        "numberInputs": 3
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000022",
+      "name": "Accusé de réception au prospect",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2680,
+        120
+      ],
+      "parameters": {
+        "fromEmail": "contact@chene-et-cie.demo",
+        "toEmail": "={{ $('Score et dédoublonnage').first().json.email }}",
+        "subject": "Votre demande est bien reçue",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#1D2422;line-height:1.55\">\n<p>Bonjour {{ $('Score et dédoublonnage').first().json.nom.split(' ')[0] }},</p>\n<p>Votre demande est bien reçue. Nous vous répondons sous 48 h ouvrées.</p>\n<p style=\"font-size:13px;color:#5E6662;margin-top:22px;border-top:1px solid #D8D2C5;padding-top:12px\"><b>Vos données</b> servent uniquement à répondre à votre demande (base légale : mesures précontractuelles prises à votre demande). Elles ne sont ni revendues ni utilisées pour entraîner une IA. Elles sont conservées 3 ans après notre dernier échange, puis supprimées. Pour y accéder, les corriger ou les faire effacer, répondez simplement à cet email.</p><p>L'atelier Chêne &amp; Cie</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000023",
+      "name": "Chaque nuit à 3 h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        760
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000024",
+      "name": "Purge à la demande",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        940
+      ],
+      "parameters": {
+        "formTitle": "Purge RGPD du fichier prospects",
+        "formDescription": "Version de test : la date de référence s'applique aussi à la purge réelle.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Mode",
+              "fieldName": "mode",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Simulation (rien n'est effacé)"
+                  },
+                  {
+                    "option": "Purge réelle"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Date de référence (simulation)",
+              "fieldName": "date",
+              "fieldType": "date"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Lancer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Purge lancée. Le compte rendu arrive par email."
+            }
+          }
+        }
+      },
+      "webhookId": "7a2b5c40-9d3e-4a6f-8b7c-ca7a00000011"
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000025",
+      "name": "Paramètres de la purge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        840
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Par défaut : purge réelle à la date du jour (déclenchement de nuit).\nconst f = $('Purge à la demande').isExecuted ? $('Purge à la demande').first().json : {};\nconst simulation = String(f.mode ?? '').startsWith('Simulation');\nconst autoriseDate = simulation || true;\nconst reference = autoriseDate && f.date ? f.date : $now.setZone('Europe/Paris').toISODate();\nreturn [{ json: { simulation, reference } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000026",
+      "name": "Fiches arrivées à échéance",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        840
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "prospects_chene_et_cie_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "conservation_jusqua",
+              "condition": "lt",
+              "keyValue": "={{ $json.reference }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000028",
+      "name": "Simulation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        840
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8007-000000000027",
+              "leftValue": "={{ $('Paramètres de la purge').first().json.simulation }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000029",
+      "name": "Supprimer les fiches échues",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        760
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "prospects_chene_et_cie_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "conservation_jusqua",
+              "condition": "lt",
+              "keyValue": "={{ $('Paramètres de la purge').first().json.reference }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000030",
+      "name": "Fin de la purge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1120,
+        840
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000031",
+      "name": "Compte rendu de purge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        840
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Paramètres de la purge').first().json;\nconst echues = $('Fiches arrivées à échéance').all().map(i => i.json).filter(r => r && r.email);\nreturn [{ json: { ...p, nombre: echues.length, fiches: echues.map(r => ({ email: r.email, entreprise: r.entreprise, jusqua: DateTime.fromISO(String(r.conservation_jusqua)).setZone('Europe/Paris').toISODate() })) } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8007-000000000032",
+      "name": "Envoyer le compte rendu",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        840
+      ],
+      "parameters": {
+        "fromEmail": "prospects@chene-et-cie.demo",
+        "toEmail": "admin@chene-et-cie.demo",
+        "subject": "=Purge RGPD{{ $json.simulation ? ' (simulation)' : '' }} · {{ $json.nombre }} fiche(s) {{ $json.simulation ? 'à supprimer' : 'supprimée(s)' }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#1D2422\"><h2 style=\"margin:0 0 8px\">Purge RGPD{{ $json.simulation ? ' · simulation' : '' }}</h2><p>Date de référence : {{ $json.reference }}. Règle : fiches dont la durée de conservation (3 ans après le dernier échange) est dépassée.</p><p><b>{{ $json.nombre }} fiche(s) {{ $json.simulation ? 'seraient supprimées' : 'supprimées' }}.</b></p>{{ $json.fiches.length ? '<ul style=\"font-size:14px\">' + $json.fiches.map(f => '<li>' + f.email + (f.entreprise ? ' · ' + f.entreprise : '') + ' (échéance ' + f.jusqua + ')</li>').join('') + '</ul>' : '' }}<p style=\"font-size:12px;color:#5E6662\">Ce compte rendu sert de trace de la purge pour votre registre des traitements.</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Demande de contact": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réglages": {
+      "main": [
+        [
+          {
+            "node": "Créer la table si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer la table si besoin": {
+      "main": [
+        [
+          {
+            "node": "Normaliser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser": {
+      "main": [
+        [
+          {
+            "node": "Registre des entreprises",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registre des entreprises": {
+      "main": [
+        [
+          {
+            "node": "Commune du chantier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commune du chantier": {
+      "main": [
+        [
+          {
+            "node": "Fiche entreprise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiche entreprise": {
+      "main": [
+        [
+          {
+            "node": "Qualifier le besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Qualifier le besoin",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualifier le besoin": {
+      "main": [
+        [
+          {
+            "node": "Déjà dans le CRM ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Déjà dans le CRM ?": {
+      "main": [
+        [
+          {
+            "node": "Score et dédoublonnage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score et dédoublonnage": {
+      "main": [
+        [
+          {
+            "node": "Pas un spam ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pas un spam ?": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer dans le CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer dans le CRM": {
+      "main": [
+        [
+          {
+            "node": "Selon la catégorie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selon la catégorie": {
+      "main": [
+        [
+          {
+            "node": "Alerte commerciale (chaud)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fiche au commercial (tiède)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rassembler",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Alerte commerciale (chaud)": {
+      "main": [
+        [
+          {
+            "node": "Rassembler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiche au commercial (tiède)": {
+      "main": [
+        [
+          {
+            "node": "Rassembler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Rassembler": {
+      "main": [
+        [
+          {
+            "node": "Accusé de réception au prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chaque nuit à 3 h": {
+      "main": [
+        [
+          {
+            "node": "Paramètres de la purge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purge à la demande": {
+      "main": [
+        [
+          {
+            "node": "Paramètres de la purge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Paramètres de la purge": {
+      "main": [
+        [
+          {
+            "node": "Fiches arrivées à échéance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiches arrivées à échéance": {
+      "main": [
+        [
+          {
+            "node": "Simulation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulation ?": {
+      "main": [
+        [
+          {
+            "node": "Supprimer les fiches échues",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin de la purge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Supprimer les fiches échues": {
+      "main": [
+        [
+          {
+            "node": "Fin de la purge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fin de la purge": {
+      "main": [
+        [
+          {
+            "node": "Compte rendu de purge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compte rendu de purge": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le compte rendu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}
