@@ -1,0 +1,1332 @@
+{
+  "id": "cat09RappelsAvis",
+  "name": "Catalogue 09 · Rappels de rendez-vous + demande d'avis Google (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8009-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -640
+      ],
+      "parameters": {
+        "content": "## 📅 Rappels de rendez-vous + demande d'avis Google\n**Problème :** des clients oublient le rendez-vous, et les clients contents ne pensent jamais à laisser un avis. Les mécontents, eux, le font.\n\n**Solution :**\n1. L'atelier saisit le rendez-vous : le client reçoit une confirmation et le **fichier agenda (.ics)**.\n2. **La veille** : rappel avec deux boutons, « Je confirme » ou « Je dois déplacer » (l'atelier est alors prévenu).\n3. **Le lendemain de l'intervention** : une note de 1 à 5 et **le même lien vers les avis Google pour tout le monde**.\n4. Une note basse ou un commentaire négatif : l'**IA locale** le classe (retard, qualité, propreté…) et propose une réponse ; **le gérant est alerté**.\n\n**Règle de Google respectée :** aucun filtrage. Les clients mécontents ne sont pas écartés des avis Google (« review gating », interdit).\n\nLes liens envoyés sont **signés** : impossible de confirmer ou noter le rendez-vous d'un autre.\n\n*Démo : agenda dans une table n8n. La version pro ajoute Google Agenda ou Outlook, le SMS et le tableau de bord des avis.*",
+        "width": 720,
+        "height": 580,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000002",
+      "name": "Réglages",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"entreprise\": \"Chêne & Cie\",\n  \"url_n8n\": \"http://localhost:5678\",\n  \"cle_liens\": \"CHANGEZ-MOI-une-longue-phrase-secrete\",\n  \"lien_avis_google\": \"https://search.google.com/local/writereview?placeid=VOTRE_PLACE_ID\",\n  \"email_atelier\": \"atelier@chene-et-cie.demo\",\n  \"email_gerant\": \"gerant@chene-et-cie.demo\"\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000003",
+      "name": "Nouveau rendez-vous",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "formTitle": "Nouveau rendez-vous (usage interne)",
+        "formDescription": "Démo : l'atelier saisit un rendez-vous ; le client reçoit la confirmation et le fichier agenda.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Client",
+              "fieldName": "client",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email du client",
+              "fieldName": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Type",
+              "fieldName": "type",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Visite technique"
+                  },
+                  {
+                    "option": "Pose"
+                  },
+                  {
+                    "option": "Intervention SAV"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Date",
+              "fieldName": "date",
+              "fieldType": "date",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Heure (HH:MM)",
+              "fieldName": "heure",
+              "requiredField": true,
+              "placeholder": "09:00"
+            },
+            {
+              "fieldLabel": "Durée",
+              "fieldName": "duree",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "1 h"
+                  },
+                  {
+                    "option": "2 h"
+                  },
+                  {
+                    "option": "4 h"
+                  },
+                  {
+                    "option": "Journée (8 h)"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Adresse",
+              "fieldName": "adresse",
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Enregistrer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Rendez-vous enregistré, confirmation envoyée au client."
+            }
+          }
+        }
+      },
+      "webhookId": "9c4d7e60-bf5a-4c8b-8d9e-ca7a00000015"
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000005",
+      "name": "Créer l'agenda si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "rendez_vous_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "reference",
+              "type": "string"
+            },
+            {
+              "name": "client",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "type",
+              "type": "string"
+            },
+            {
+              "name": "debut",
+              "type": "date"
+            },
+            {
+              "name": "fin",
+              "type": "date"
+            },
+            {
+              "name": "adresse",
+              "type": "string"
+            },
+            {
+              "name": "statut",
+              "type": "string"
+            },
+            {
+              "name": "rappel_le",
+              "type": "date"
+            },
+            {
+              "name": "avis_demande_le",
+              "type": "date"
+            },
+            {
+              "name": "note",
+              "type": "number"
+            },
+            {
+              "name": "commentaire",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000006",
+      "name": "Préparer le rendez-vous",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function sha1(bytes) {\n  const ml = bytes.length * 8, avecUn = bytes.length + 1, len = avecUn + ((56 - (avecUn % 64)) + 64) % 64 + 8;\n  const m = new Uint8Array(len); m.set(bytes); m[bytes.length] = 0x80;\n  const dv = new DataView(m.buffer); dv.setUint32(len - 4, ml >>> 0); dv.setUint32(len - 8, Math.floor(ml / 2 ** 32));\n  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0; const w = new Uint32Array(80);\n  for (let i = 0; i < len; i += 64) {\n    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4);\n    for (let t = 16; t < 80; t++) { const x = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]; w[t] = (x << 1) | (x >>> 31); }\n    let a = h0, b = h1, c = h2, d = h3, e = h4;\n    for (let t = 0; t < 80; t++) {\n      const [f, k] = t < 20 ? [(b & c) | (~b & d), 0x5A827999] : t < 40 ? [b ^ c ^ d, 0x6ED9EBA1] : t < 60 ? [(b & c) | (b & d) | (c & d), 0x8F1BBCDC] : [b ^ c ^ d, 0xCA62C1D6];\n      const tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[t]) >>> 0; e = d; d = c; c = ((b << 30) | (b >>> 2)) >>> 0; b = a; a = tmp;\n    }\n    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;\n  }\n  return [h0, h1, h2, h3, h4].map(x => x.toString(16).padStart(8, '0')).join('');\n}\n// Jeton des liens envoyés au client : sans la clé secrète, impossible de fabriquer un lien valide.\nconst jeton = (ref, action, cle) => sha1(new Uint8Array(Buffer.from(ref + '|' + action + '|' + cle, 'utf8'))).slice(0, 20);\nconst lien = (reg, ref, action, extra = '') => reg.url_n8n + '/webhook/rdv-chene-et-cie?ref=' + encodeURIComponent(ref) + '&action=' + action + extra + '&jeton=' + jeton(ref, action, reg.cle_liens);\n// Rendez-vous saisi par l'atelier : référence, horaires (heure de Paris), fichier agenda pour le client.\nconst f = $('Nouveau rendez-vous').first().json;\nconst reg = $('Réglages').first().json;\nconst debut = DateTime.fromISO(f.date + 'T' + f.heure, { zone: 'Europe/Paris' });\nif (!debut.isValid) throw new Error('Date ou heure invalide : ' + f.date + ' ' + f.heure);\nconst DUREES = { '1 h': 60, '2 h': 120, '4 h': 240, 'Journée (8 h)': 480 };\nconst fin = debut.plus({ minutes: DUREES[f.duree] ?? 60 });\nconst reference = 'RDV-' + debut.toFormat('yyyyLLdd-HHmm') + '-' + String(f.client).normalize('NFD').replace(/[^A-Za-z]/g, '').slice(0, 6).toUpperCase();\nconst utc = d => d.toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\");\nconst ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//VudeLao//Rendez-vous//FR', 'BEGIN:VEVENT', 'UID:' + reference + '@chene-et-cie.demo', 'DTSTAMP:' + utc($now),\n  'DTSTART:' + utc(debut), 'DTEND:' + utc(fin), 'SUMMARY:' + f.type + ' · ' + reg.entreprise, 'LOCATION:' + String(f.adresse).replace(/[,;]/g, m => '\\\\' + m),\n  'BEGIN:VALARM', 'TRIGGER:-PT2H', 'ACTION:DISPLAY', 'DESCRIPTION:Rendez-vous ' + reg.entreprise, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\\r\\n');\nreturn [{ json: { reference, client: f.client, email: String(f.email).trim().toLowerCase(), type: f.type, adresse: f.adresse,\n  debut: debut.toISO(), fin: fin.toISO(), quand: debut.setLocale('fr').toFormat(\"cccc d LLLL 'à' HH'h'mm\"), statut: 'planifié' },\n  binary: { agenda: await this.helpers.prepareBinaryData(Buffer.from(ics, 'utf8'), 'rendez-vous-' + reference + '.ics', 'text/calendar') } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000007",
+      "name": "Inscrire à l'agenda",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "reference": "={{ $json.reference }}",
+            "client": "={{ $json.client }}",
+            "email": "={{ $json.email }}",
+            "type": "={{ $json.type }}",
+            "debut": "={{ $json.debut }}",
+            "fin": "={{ $json.fin }}",
+            "adresse": "={{ $json.adresse }}",
+            "statut": "={{ $json.statut }}"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000008",
+      "name": "Joindre le fichier agenda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// L'écriture dans l'agenda ne transmet pas la pièce jointe : on la reprend ici.\nconst p = $('Préparer le rendez-vous').first();\nreturn [{ json: p.json, binary: { agenda: p.binary.agenda } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000009",
+      "name": "Confirmer au client",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "rendez-vous@chene-et-cie.demo",
+        "toEmail": "={{ $('Préparer le rendez-vous').first().json.email }}",
+        "subject": "=Votre rendez-vous · {{ $('Préparer le rendez-vous').first().json.type }} · {{ $('Préparer le rendez-vous').first().json.quand }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:560px;color:#1D2422;line-height:1.55\"><p>Bonjour {{ $('Préparer le rendez-vous').first().json.client.split(' ')[0] }},</p><p>Votre rendez-vous est enregistré : <b>{{ $('Préparer le rendez-vous').first().json.type }}</b>, {{ $('Préparer le rendez-vous').first().json.quand }}, {{ $('Préparer le rendez-vous').first().json.adresse }}.</p><p>Le fichier joint l'ajoute à votre agenda. Vous recevrez un rappel la veille.</p><p>L'atelier {{ $('Réglages').first().json.entreprise }}</p></div>",
+        "options": {
+          "appendAttribution": false,
+          "attachments": "agenda"
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000010",
+      "name": "Toutes les 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000011",
+      "name": "Rendez-vous à suivre",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "statut",
+              "condition": "neq",
+              "keyValue": "avis demandé"
+            },
+            {
+              "keyName": "statut",
+              "condition": "neq",
+              "keyValue": "à déplacer"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000012",
+      "name": "Actions de la tournée",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function sha1(bytes) {\n  const ml = bytes.length * 8, avecUn = bytes.length + 1, len = avecUn + ((56 - (avecUn % 64)) + 64) % 64 + 8;\n  const m = new Uint8Array(len); m.set(bytes); m[bytes.length] = 0x80;\n  const dv = new DataView(m.buffer); dv.setUint32(len - 4, ml >>> 0); dv.setUint32(len - 8, Math.floor(ml / 2 ** 32));\n  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0; const w = new Uint32Array(80);\n  for (let i = 0; i < len; i += 64) {\n    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4);\n    for (let t = 16; t < 80; t++) { const x = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]; w[t] = (x << 1) | (x >>> 31); }\n    let a = h0, b = h1, c = h2, d = h3, e = h4;\n    for (let t = 0; t < 80; t++) {\n      const [f, k] = t < 20 ? [(b & c) | (~b & d), 0x5A827999] : t < 40 ? [b ^ c ^ d, 0x6ED9EBA1] : t < 60 ? [(b & c) | (b & d) | (c & d), 0x8F1BBCDC] : [b ^ c ^ d, 0xCA62C1D6];\n      const tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[t]) >>> 0; e = d; d = c; c = ((b << 30) | (b >>> 2)) >>> 0; b = a; a = tmp;\n    }\n    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;\n  }\n  return [h0, h1, h2, h3, h4].map(x => x.toString(16).padStart(8, '0')).join('');\n}\n// Jeton des liens envoyés au client : sans la clé secrète, impossible de fabriquer un lien valide.\nconst jeton = (ref, action, cle) => sha1(new Uint8Array(Buffer.from(ref + '|' + action + '|' + cle, 'utf8'))).slice(0, 20);\nconst lien = (reg, ref, action, extra = '') => reg.url_n8n + '/webhook/rdv-chene-et-cie?ref=' + encodeURIComponent(ref) + '&action=' + action + extra + '&jeton=' + jeton(ref, action, reg.cle_liens);\n// Tournée : pour chaque rendez-vous, décide l'action du moment.\n// rappel : entre 24 h et 2 h avant · réalisé : rendez-vous terminé · avis : 18 h après la fin (le lendemain).\nconst reg = $('Réglages').first().json;\nconst ref = $now.setZone('Europe/Paris');\nconst actions = [];\nfor (const r of $input.all().map(i => i.json).filter(r => r && r.reference)) {\n  const debut = DateTime.fromISO(String(r.debut)).setZone('Europe/Paris'), fin = DateTime.fromISO(String(r.fin)).setZone('Europe/Paris');\n  const avant = debut.diff(ref, 'hours').hours, apres = ref.diff(fin, 'hours').hours;\n  const base = { ...r, quand: debut.setLocale('fr').toFormat(\"cccc d LLLL 'à' HH'h'mm\"), prenom: String(r.client).split(' ')[0], maintenant: ref.toISO() };\n  if (r.statut === 'planifié' && avant <= 24 && avant > 2)\n    actions.push({ ...base, action: 'rappel', lien_confirmer: lien(reg, r.reference, 'confirmer'), lien_deplacer: lien(reg, r.reference, 'deplacer') });\n  else if (['planifié', 'rappel envoyé', 'confirmé', 'réalisé'].includes(r.statut) && apres >= 18)\n    actions.push({ ...base, action: 'avis', liens_note: [1, 2, 3, 4, 5].map(n => lien(reg, r.reference, 'note', '&valeur=' + n)) });\n  else if (['planifié', 'rappel envoyé', 'confirmé'].includes(r.statut) && apres >= 0)\n    actions.push({ ...base, action: 'réalisé' });\n}\nreturn actions.map(json => ({ json }));"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000016",
+      "name": "Quelle action ?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000013",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "rappel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rappel"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000014",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "avis",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "avis"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000015",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "réalisé",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "réalisé"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000017",
+      "name": "Rappel de la veille",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        280
+      ],
+      "parameters": {
+        "fromEmail": "rendez-vous@chene-et-cie.demo",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Rappel · votre rendez-vous {{ $json.quand }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:560px;color:#1D2422;line-height:1.55\"><p>Bonjour {{ $json.prenom }},</p><p>Petit rappel : <b>{{ $json.type }}</b> {{ $json.quand }}, {{ $json.adresse }}.</p><p><a href=\"{{ $json.lien_confirmer }}\" style=\"display:inline-block;padding:11px 16px;border-radius:8px;background:#315C5A;color:#fff;text-decoration:none;font-weight:bold\">Je confirme</a> &nbsp; <a href=\"{{ $json.lien_deplacer }}\" style=\"display:inline-block;padding:11px 16px;border-radius:8px;border:1px solid #315C5A;color:#315C5A;text-decoration:none;font-weight:bold\">Je dois déplacer</a></p><p>L'atelier {{ $('Réglages').first().json.entreprise }}</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000018",
+      "name": "Noter le rappel",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        280
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $('Quelle action ?').item.json.reference }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "rappel envoyé",
+            "rappel_le": "={{ $('Quelle action ?').item.json.maintenant }}"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000019",
+      "name": "Demande d'avis",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        440
+      ],
+      "parameters": {
+        "fromEmail": "rendez-vous@chene-et-cie.demo",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Comment s'est passée notre intervention ?",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:560px;color:#1D2422;line-height:1.55\"><p>Bonjour {{ $json.prenom }},</p><p>Merci de nous avoir fait confiance ({{ $json.type }}, {{ $json.quand }}). Comment cela s'est-il passé ?</p><p>{{ $json.liens_note.map((u, i) => '<a href=\"' + u + '\" style=\"display:inline-block;margin-right:6px;padding:10px 14px;border-radius:8px;border:1px solid #D8D2C5;color:#1D2422;text-decoration:none;font-weight:bold\">' + (i + 1) + ' ★</a>').join('') }}</p><p>Et si vous avez deux minutes, un avis sur Google aide beaucoup une petite entreprise :</p><p><a href=\"{{ $('Réglages').first().json.lien_avis_google }}\" style=\"display:inline-block;padding:11px 16px;border-radius:8px;background:#315C5A;color:#fff;text-decoration:none;font-weight:bold\">Laisser un avis sur Google</a></p><p>L'atelier {{ $('Réglages').first().json.entreprise }}</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000020",
+      "name": "Noter la demande d'avis",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        440
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $('Quelle action ?').item.json.reference }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "avis demandé",
+            "avis_demande_le": "={{ $('Quelle action ?').item.json.maintenant }}"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000021",
+      "name": "Marquer réalisé",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        600
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $json.reference }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "réalisé"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000048",
+      "name": "Aiguillage",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000046",
+                    "leftValue": "={{ $('Nouveau rendez-vous').isExecuted }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "nouveau"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "tournée"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Nouveau rendez-vous": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Toutes les 30 minutes": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réglages": {
+      "main": [
+        [
+          {
+            "node": "Aiguillage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aiguillage": {
+      "main": [
+        [
+          {
+            "node": "Créer l'agenda si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rendez-vous à suivre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer l'agenda si besoin": {
+      "main": [
+        [
+          {
+            "node": "Préparer le rendez-vous",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le rendez-vous": {
+      "main": [
+        [
+          {
+            "node": "Inscrire à l'agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inscrire à l'agenda": {
+      "main": [
+        [
+          {
+            "node": "Joindre le fichier agenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Joindre le fichier agenda": {
+      "main": [
+        [
+          {
+            "node": "Confirmer au client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendez-vous à suivre": {
+      "main": [
+        [
+          {
+            "node": "Actions de la tournée",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions de la tournée": {
+      "main": [
+        [
+          {
+            "node": "Quelle action ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quelle action ?": {
+      "main": [
+        [
+          {
+            "node": "Rappel de la veille",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Demande d'avis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marquer réalisé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rappel de la veille": {
+      "main": [
+        [
+          {
+            "node": "Noter le rappel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demande d'avis": {
+      "main": [
+        [
+          {
+            "node": "Noter la demande d'avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="360" rx="12" fill="#F5F2EA"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#315C5A"/></marker></defs>
+  <g font-size="11" fill="#5E6662" font-weight="bold" letter-spacing="1.5"><text x="24" y="32">RENDEZ-VOUS ET TOURNÉE · TOUTES LES 30 MINUTES</text><text x="24" y="212">RÉPONSES DES CLIENTS · LIENS SIGNÉS</text></g>
+  <g font-size="13" fill="#1D2422" text-anchor="middle">
+    <rect x="20" y="46" width="150" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="95" y="78" font-weight="bold">Rendez-vous saisi</text><text x="95" y="96" fill="#5E6662" font-size="11">confirmation + .ics</text>
+    <rect x="195" y="46" width="170" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="280" y="74" font-weight="bold">La veille</text><text x="280" y="92" fill="#5E6662" font-size="11">rappel : « Je confirme »</text><text x="280" y="108" fill="#5E6662" font-size="11">ou « Je dois déplacer »</text>
+    <rect x="390" y="46" width="170" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="475" y="80" font-weight="bold">Après l'intervention</text><text x="475" y="98" fill="#5E6662" font-size="11">marqué « réalisé »</text>
+    <rect x="585" y="46" width="355" height="80" rx="8" fill="#315C5A"/><text x="762" y="74" font-weight="bold" fill="#fff">Le lendemain : note de 1 à 5</text><text x="762" y="92" fill="#E5DED3" font-size="11">+ le même lien vers les avis Google pour tous les clients</text><text x="762" y="108" fill="#E5DED3" font-size="11">(aucun filtrage : règle de Google)</text>
+
+    <rect x="20" y="228" width="150" height="80" rx="8" fill="#fff" stroke="#C47A61" stroke-width="1.5"/><text x="95" y="260" font-weight="bold">Lien vérifié</text><text x="95" y="278" fill="#5E6662" font-size="11">signature, sinon refus</text>
+    <rect x="195" y="228" width="170" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="280" y="256" font-weight="bold">Confirmer / déplacer</text><text x="280" y="274" fill="#5E6662" font-size="11">agenda à jour ;</text><text x="280" y="290" fill="#5E6662" font-size="11">l'atelier rappelle</text>
+    <rect x="390" y="228" width="170" height="80" rx="8" fill="#315C5A"/><text x="475" y="256" font-weight="bold" fill="#fff">Commentaire lu</text><text x="475" y="274" fill="#E5DED3" font-size="11">par l'IA locale : sujets,</text><text x="475" y="290" fill="#E5DED3" font-size="11">urgence, brouillon</text>
+    <rect x="585" y="228" width="170" height="80" rx="8" fill="#fff" stroke="#C47A61" stroke-width="1.5"/><text x="670" y="260" font-weight="bold">Note ≤ 3 ou urgent</text><text x="670" y="278" fill="#5E6662" font-size="11">alerte au gérant</text>
+    <rect x="780" y="228" width="160" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="860" y="260" font-weight="bold">Page de remerciement</text><text x="860" y="278" fill="#5E6662" font-size="11">avec le lien Google</text>
+  </g>
+  <g stroke="#315C5A" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M170 86H191"/><path d="M365 86H386"/><path d="M560 86H581"/>
+    <path d="M170 268H191"/><path d="M365 268H386"/><path d="M560 268H581"/><path d="M755 268H776"/>
+  </g>
+</svg>

@@ -1,0 +1,1164 @@
+{
+  "id": "cat09ReponsesClients",
+  "name": "Catalogue 09 · Réponses des clients aux rappels et demandes d'avis (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8009-000000000023",
+      "name": "Lien cliqué par le client",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        900
+      ],
+      "parameters": {
+        "path": "rdv-chene-et-cie",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "9c4d7e60-bf5a-4c8b-8d9e-ca7a00000017"
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000024",
+      "name": "Vérifier le lien",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        900
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function sha1(bytes) {\n  const ml = bytes.length * 8, avecUn = bytes.length + 1, len = avecUn + ((56 - (avecUn % 64)) + 64) % 64 + 8;\n  const m = new Uint8Array(len); m.set(bytes); m[bytes.length] = 0x80;\n  const dv = new DataView(m.buffer); dv.setUint32(len - 4, ml >>> 0); dv.setUint32(len - 8, Math.floor(ml / 2 ** 32));\n  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0; const w = new Uint32Array(80);\n  for (let i = 0; i < len; i += 64) {\n    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4);\n    for (let t = 16; t < 80; t++) { const x = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]; w[t] = (x << 1) | (x >>> 31); }\n    let a = h0, b = h1, c = h2, d = h3, e = h4;\n    for (let t = 0; t < 80; t++) {\n      const [f, k] = t < 20 ? [(b & c) | (~b & d), 0x5A827999] : t < 40 ? [b ^ c ^ d, 0x6ED9EBA1] : t < 60 ? [(b & c) | (b & d) | (c & d), 0x8F1BBCDC] : [b ^ c ^ d, 0xCA62C1D6];\n      const tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[t]) >>> 0; e = d; d = c; c = ((b << 30) | (b >>> 2)) >>> 0; b = a; a = tmp;\n    }\n    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;\n  }\n  return [h0, h1, h2, h3, h4].map(x => x.toString(16).padStart(8, '0')).join('');\n}\n// Jeton des liens envoyés au client : sans la clé secrète, impossible de fabriquer un lien valide.\nconst jeton = (ref, action, cle) => sha1(new Uint8Array(Buffer.from(ref + '|' + action + '|' + cle, 'utf8'))).slice(0, 20);\nconst lien = (reg, ref, action, extra = '') => reg.url_n8n + '/webhook/rdv-chene-et-cie?ref=' + encodeURIComponent(ref) + '&action=' + action + extra + '&jeton=' + jeton(ref, action, reg.cle_liens);\n// Lien cliqué par un client : on vérifie le jeton avant tout.\nconst q = $('Lien cliqué par le client').first().json.query ?? {};\nconst reg = $('Réglages').first().json;\nconst action = String(q.action ?? ''), ref = String(q.ref ?? '');\nconst valide = ['confirmer', 'deplacer', 'note'].includes(action) && ref && q.jeton === jeton(ref, action, reg.cle_liens);\nconst note = Math.max(1, Math.min(5, parseInt(q.valeur ?? '0', 10) || 0));\nreturn [{ json: { valide, action, ref, note: action === 'note' ? note : null, commentaire: String(q.commentaire ?? '').trim().slice(0, 2000),\n  jeton: q.jeton, lien_commentaire: valide && action === 'note' ? lien(reg, ref, 'note', '&valeur=' + note) : null, lien_avis_google: reg.lien_avis_google } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000028",
+      "name": "Lien valide ?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        660,
+        900
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000025",
+                    "leftValue": "={{ $json.valide ? $json.action : 'invalide' }}",
+                    "rightValue": "confirmer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "confirmer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000026",
+                    "leftValue": "={{ $json.valide ? $json.action : 'invalide' }}",
+                    "rightValue": "deplacer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "deplacer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "00000000-0000-4000-8009-000000000027",
+                    "leftValue": "={{ $json.valide ? $json.action : 'invalide' }}",
+                    "rightValue": "note",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "note"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "invalide"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000029",
+      "name": "Rendez-vous confirmé",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        760
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $json.ref }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "confirmé"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000030",
+      "name": "Page : confirmé",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1100,
+        760
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rendez-vous confirmé</title>\n<style>body{margin:0;background:#F5F2EA;font-family:Arial,sans-serif;color:#1D2422}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #D8D2C5;border-radius:14px}\nh1{font-size:24px;margin:0 0 12px}p{line-height:1.55;color:#3B4441}a.btn{display:inline-block;margin-top:14px;padding:12px 18px;border-radius:8px;background:#315C5A;color:#fff;text-decoration:none;font-weight:bold}\ntextarea{width:100%;box-sizing:border-box;min-height:90px;margin-top:10px;padding:10px;border:1px solid #D8D2C5;border-radius:8px;font:inherit}button{margin-top:10px;padding:10px 16px;border:1px solid #315C5A;background:#fff;color:#315C5A;border-radius:8px;font-weight:bold}\nsmall{color:#5E6662}</style></head><body><main><h1>Merci, c'est confirmé.</h1><p>Nous serons là à l'heure prévue.</p></main></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000031",
+      "name": "Rendez-vous à déplacer",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        900
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $json.ref }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "statut": "à déplacer"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000032",
+      "name": "Prévenir l'atelier",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        900
+      ],
+      "parameters": {
+        "fromEmail": "rendez-vous@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.email_atelier }}",
+        "subject": "=📞 À rappeler : {{ $('Vérifier le lien').first().json.ref }} doit être déplacé",
+        "emailFormat": "text",
+        "text": "=Le client a cliqué « Je dois déplacer » pour le rendez-vous {{ $('Vérifier le lien').first().json.ref }}. Rappelez-le pour convenir d'un autre créneau.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000033",
+      "name": "Page : à déplacer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1320,
+        900
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Rendez-vous à déplacer</title>\n<style>body{margin:0;background:#F5F2EA;font-family:Arial,sans-serif;color:#1D2422}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #D8D2C5;border-radius:14px}\nh1{font-size:24px;margin:0 0 12px}p{line-height:1.55;color:#3B4441}a.btn{display:inline-block;margin-top:14px;padding:12px 18px;border-radius:8px;background:#315C5A;color:#fff;text-decoration:none;font-weight:bold}\ntextarea{width:100%;box-sizing:border-box;min-height:90px;margin-top:10px;padding:10px;border:1px solid #D8D2C5;border-radius:8px;font:inherit}button{margin-top:10px;padding:10px 16px;border:1px solid #315C5A;background:#fff;color:#315C5A;border-radius:8px;font-weight:bold}\nsmall{color:#5E6662}</style></head><body><main><h1>C'est noté.</h1><p>L'atelier vous rappelle rapidement pour convenir d'un autre créneau.</p></main></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000034",
+      "name": "Enregistrer la note",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        1060
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reference",
+              "condition": "eq",
+              "keyValue": "={{ $json.ref }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "note": "={{ $json.note }}",
+            "commentaire": "={{ $json.commentaire }}"
+          },
+          "schema": [
+            {
+              "id": "reference",
+              "displayName": "reference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "debut",
+              "displayName": "debut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fin",
+              "displayName": "fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "adresse",
+              "displayName": "adresse",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "statut",
+              "displayName": "statut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rappel_le",
+              "displayName": "rappel_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "avis_demande_le",
+              "displayName": "avis_demande_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "commentaire",
+              "displayName": "commentaire",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000036",
+      "name": "Commentaire à lire ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        1060
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8009-000000000035",
+              "leftValue": "={{ $('Vérifier le lien').first().json.commentaire.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000037",
+      "name": "Lire le commentaire",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        980
+      ],
+      "parameters": {
+        "text": "=Note donnée : {{ $('Vérifier le lien').first().json.note }}/5\nCommentaire du client :\n{{ $('Vérifier le lien').first().json.commentaire }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"sentiment\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"positif\",\n        \"neutre\",\n        \"negatif\"\n      ]\n    },\n    \"sujets\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"urgent\": {\n      \"type\": \"boolean\"\n    },\n    \"resume\": {\n      \"type\": \"string\"\n    },\n    \"reponse\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"sentiment\",\n    \"sujets\",\n    \"urgent\",\n    \"resume\",\n    \"reponse\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu lis le commentaire laissé par un client après une intervention d'artisan (menuiserie).\n- sentiment : positif, neutre ou negatif.\n- sujets : parmi retard, qualite, proprete, prix, communication, autre (plusieurs possibles).\n- urgent : vrai si le client signale un défaut, un danger, un dégât ou demande une intervention.\n- resume : une phrase, sans rien inventer.\n- reponse : un brouillon de réponse au client pour le gérant, en français, vouvoiement, 80 mots au plus, qui remercie, reconnaît le problème sans se justifier, et propose un appel. Aucune promesse de geste commercial."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000038",
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        1200
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000039",
+      "name": "Bilan de l'avis",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1540,
+        1060
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000040",
+      "name": "Alerter le gérant ?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1060
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Alerte si la note est basse, ou si l'IA juge le commentaire négatif ou urgent.\nconst v = $('Vérifier le lien').first().json;\nconst ia = $('Lire le commentaire').isExecuted ? $('Lire le commentaire').first().json.output : null;\nconst alerte = v.note <= 3 || ia?.sentiment === 'negatif' || ia?.urgent === true;\nconst LIB = { positif: 'positif', neutre: 'neutre', negatif: 'négatif', retard: 'retard', qualite: 'qualité', proprete: 'propreté', prix: 'prix', communication: 'communication', autre: 'autre' };\nif (ia) { ia.sentiment = LIB[ia.sentiment] ?? ia.sentiment; ia.sujets = (ia.sujets ?? []).map(x => LIB[x] ?? x); }\nreturn [{ json: { ...v, ia, alerte } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000042",
+      "name": "Alerte ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        1060
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8009-000000000041",
+              "leftValue": "={{ $json.alerte }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000043",
+      "name": "Alerter le gérant",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        980
+      ],
+      "parameters": {
+        "fromEmail": "rendez-vous@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.email_gerant }}",
+        "subject": "={{ $json.ia?.urgent ? '🔴 Urgent · ' : '⚠ ' }}Client mécontent · {{ $json.note }}/5 · {{ $json.ref }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#1D2422;line-height:1.5\"><h2 style=\"margin:0 0 8px\">{{ $json.note }}/5 · {{ $json.ref }}</h2>{{ $json.commentaire ? '<p style=\"padding:10px 14px;border-left:3px solid #C47A61;background:#F5F2EA\">« ' + $json.commentaire.replaceAll('<','&lt;') + ' »</p>' : '<p>Pas de commentaire.</p>' }}{{ $json.ia ? '<p><b>Lecture de l\\'IA :</b> ' + $json.ia.sentiment + ' · ' + $json.ia.sujets.join(', ') + ($json.ia.urgent ? ' · <b>urgent</b>' : '') + '<br>' + $json.ia.resume + '</p><h3 style=\"margin:14px 0 6px\">Brouillon de réponse (à relire)</h3><div style=\"white-space:pre-wrap;padding:10px 14px;background:#F5F2EA\">' + $json.ia.reponse.replaceAll('<','&lt;') + '</div>' : '' }}<p style=\"font-size:12px;color:#5E6662\">Le client a reçu, comme tous les clients, le lien vers les avis Google : aucun filtrage des avis.</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000044",
+      "name": "Fin du traitement de l'avis",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2420,
+        1060
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000045",
+      "name": "Page : merci",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2640,
+        1060
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Merci pour votre retour</title>\n<style>body{margin:0;background:#F5F2EA;font-family:Arial,sans-serif;color:#1D2422}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #D8D2C5;border-radius:14px}\nh1{font-size:24px;margin:0 0 12px}p{line-height:1.55;color:#3B4441}a.btn{display:inline-block;margin-top:14px;padding:12px 18px;border-radius:8px;background:#315C5A;color:#fff;text-decoration:none;font-weight:bold}\ntextarea{width:100%;box-sizing:border-box;min-height:90px;margin-top:10px;padding:10px;border:1px solid #D8D2C5;border-radius:8px;font:inherit}button{margin-top:10px;padding:10px 16px;border:1px solid #315C5A;background:#fff;color:#315C5A;border-radius:8px;font-weight:bold}\nsmall{color:#5E6662}</style></head><body><main><h1>Merci pour votre note : {{ $('Vérifier le lien').first().json.note }}/5.</h1>{{ $('Vérifier le lien').first().json.commentaire ? '<p>Votre commentaire est bien transmis à l\\'atelier.</p>' : '<p>Un détail à nous dire ? Nous lisons tout.</p><form method=\"get\" action=\"' + $('Réglages').first().json.url_n8n + '/webhook/rdv-chene-et-cie\"><input type=\"hidden\" name=\"ref\" value=\"' + $('Vérifier le lien').first().json.ref + '\"><input type=\"hidden\" name=\"action\" value=\"note\"><input type=\"hidden\" name=\"valeur\" value=\"' + $('Vérifier le lien').first().json.note + '\"><input type=\"hidden\" name=\"jeton\" value=\"' + $('Vérifier le lien').first().json.jeton + '\"><textarea name=\"commentaire\" placeholder=\"Votre commentaire\"></textarea><button type=\"submit\">Envoyer</button></form>' }}<p>Un avis public aide beaucoup une petite entreprise :</p><a class=\"btn\" href=\"{{ $('Vérifier le lien').first().json.lien_avis_google }}\">Laisser un avis sur Google</a><p><small>Ce lien est proposé à tous nos clients, quelle que soit leur note.</small></p></main></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000046",
+      "name": "Page : lien invalide",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        880,
+        1240
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Lien invalide</title>\n<style>body{margin:0;background:#F5F2EA;font-family:Arial,sans-serif;color:#1D2422}main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #D8D2C5;border-radius:14px}\nh1{font-size:24px;margin:0 0 12px}p{line-height:1.55;color:#3B4441}a.btn{display:inline-block;margin-top:14px;padding:12px 18px;border-radius:8px;background:#315C5A;color:#fff;text-decoration:none;font-weight:bold}\ntextarea{width:100%;box-sizing:border-box;min-height:90px;margin-top:10px;padding:10px;border:1px solid #D8D2C5;border-radius:8px;font:inherit}button{margin-top:10px;padding:10px 16px;border:1px solid #315C5A;background:#fff;color:#315C5A;border-radius:8px;font-weight:bold}\nsmall{color:#5E6662}</style></head><body><main><h1>Ce lien n'est pas valide.</h1><p>Il a peut-être été modifié. Utilisez le lien reçu par email, ou contactez l'atelier.</p></main></body></html>",
+        "options": {
+          "responseCode": 403,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000050",
+      "name": "Réglages",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        900
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"entreprise\": \"Chêne & Cie\",\n  \"url_n8n\": \"http://localhost:5678\",\n  \"cle_liens\": \"cle-de-test-locale\",\n  \"lien_avis_google\": \"https://search.google.com/local/writereview?placeid=VOTRE_PLACE_ID\",\n  \"email_atelier\": \"atelier@chene-et-cie.demo\",\n  \"email_gerant\": \"gerant@chene-et-cie.demo\"\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8009-000000000051",
+      "name": "Note 51",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        560
+      ],
+      "parameters": {
+        "content": "## 📅 Réponses des clients\nReçoit les clics des emails envoyés par le workflow « Rappels de rendez-vous + demande d'avis » : confirmer, déplacer, noter, commenter.\n\nChaque lien est **signé** : la clé du nœud **Réglages** doit être **identique** dans les deux workflows.\n\nLe lien vers les avis Google est proposé à **tous** les clients, quelle que soit leur note (pas de filtrage des avis).",
+        "width": 520,
+        "height": 260,
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "Lien cliqué par le client": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réglages": {
+      "main": [
+        [
+          {
+            "node": "Vérifier le lien",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vérifier le lien": {
+      "main": [
+        [
+          {
+            "node": "Lien valide ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lien valide ?": {
+      "main": [
+        [
+          {
+            "node": "Rendez-vous confirmé",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rendez-vous à déplacer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enregistrer la note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Page : lien invalide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendez-vous confirmé": {
+      "main": [
+        [
+          {
+            "node": "Page : confirmé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rendez-vous à déplacer": {
+      "main": [
+        [
+          {
+            "node": "Prévenir l'atelier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prévenir l'atelier": {
+      "main": [
+        [
+          {
+            "node": "Page : à déplacer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer la note": {
+      "main": [
+        [
+          {
+            "node": "Commentaire à lire ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commentaire à lire ?": {
+      "main": [
+        [
+          {
+            "node": "Lire le commentaire",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Bilan de l'avis",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Lire le commentaire",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire le commentaire": {
+      "main": [
+        [
+          {
+            "node": "Bilan de l'avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bilan de l'avis": {
+      "main": [
+        [
+          {
+            "node": "Alerter le gérant ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerter le gérant ?": {
+      "main": [
+        [
+          {
+            "node": "Alerte ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerte ?": {
+      "main": [
+        [
+          {
+            "node": "Alerter le gérant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin du traitement de l'avis",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Alerter le gérant": {
+      "main": [
+        [
+          {
+            "node": "Fin du traitement de l'avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fin du traitement de l'avis": {
+      "main": [
+        [
+          {
+            "node": "Page : merci",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

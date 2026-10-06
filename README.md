@@ -27,6 +27,7 @@ Toutes les données sont **fictives** (entreprise de démonstration « Chêne & 
 | [`06-sauvegarde-github`](catalogue/06-sauvegarde-github/) | Sauvegarde nocturne des workflows n8n dans GitHub : un commit daté, clés en clair masquées, données épinglées retirées, restauration de n'importe quelle version en copie inactive. |
 | [`07-prospects-crm`](catalogue/07-prospects-crm/) | Demandes de devis notées sur 100 (IA pour le besoin, points fixes pour le reste), API publiques (distance, registre des entreprises), CRM sans doublon, purge RGPD automatique. |
 | [`08-demandes-rgpd`](catalogue/08-demandes-rgpd/) | Demandes d'accès, d'effacement ou d'opposition : droits reconnus par IA, confirmation du demandeur, recherche dans chaque outil, conservation légale respectée, validation du gérant, registre et rappels d'échéance. |
+| [`09-rappels-rdv-avis`](catalogue/09-rappels-rdv-avis/) | Confirmation avec fichier agenda, rappel la veille (confirmer ou déplacer), note et avis Google le lendemain pour tous les clients sans filtrage, alerte au gérant sur un commentaire inquiétant. Liens signés. |
 
 ### `supervision/` · surveiller les automatisations de plusieurs clients
 
