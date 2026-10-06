@@ -1,0 +1,659 @@
+{
+  "id": "cat10VeilleBoamp",
+  "name": "Catalogue 10 · Veille des appels d'offres publics (BOAMP) avec tri IA (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8010-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -560
+      ],
+      "parameters": {
+        "content": "## 🏛️ Veille des appels d'offres publics avec tri par IA\n**Problème :** des centaines d'avis paraissent chaque jour au BOAMP. Les lire tous est impossible ; un filtre par mots-clés laisse passer des dizaines d'annonces hors sujet et en rate d'autres.\n\n**Solution, chaque matin :**\n1. **Requête au BOAMP** (API publique, sans compte) : avis de marché parus depuis hier, dans vos départements, sur vos métiers.\n2. Annonces **déjà vues** et **closes** écartées, délai restant calculé.\n3. L'**IA locale** note chaque annonce selon **votre profil** : répondre, étudier, ignorer, avec la raison, le lot visé et les points à vérifier.\n4. **Synthèse par email**, triée : en priorité, à regarder, écartées. Toutes les annonces sont gardées en mémoire.\n\n*Régler le profil, les départements et les métiers dans **Réglages**. La version pro ajoute la lecture du dossier de consultation (DCE), le suivi jusqu'à la remise de l'offre et l'historique des attributions de l'acheteur.*",
+        "width": 700,
+        "height": 500,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000002",
+      "name": "Chaque matin à 7 h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000003",
+      "name": "Lancer la veille",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {
+        "formTitle": "Lancer la veille maintenant",
+        "formDescription": "Pour un premier essai, remontez sur 30 jours.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Annonces parues depuis (jours)",
+              "fieldName": "jours",
+              "fieldType": "number",
+              "placeholder": "1"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Lancer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Veille lancée. La synthèse arrive par email."
+            }
+          }
+        }
+      },
+      "webhookId": "a1b2c3d4-e5f6-4a7b-8c9d-ca7a00000018"
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000004",
+      "name": "Réglages",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        90
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"entreprise\": \"Chêne & Cie\",\n  \"profil\": \"Atelier de menuiserie bois de 8 personnes. Fabrique et pose : fenêtres, portes, volets, escaliers, agencements intérieurs, parquets. Travaux neufs et rénovation, y compris bâtiments publics. Pas de menuiserie aluminium ou PVC industrielle, pas de charpente lourde, pas de maîtrise d'œuvre ni d'études.\",\n  \"departements\": [\n    \"19\",\n    \"24\",\n    \"46\",\n    \"87\",\n    \"15\",\n    \"23\"\n  ],\n  \"descripteurs\": [\n    \"Menuiserie\",\n    \"Bois\",\n    \"Agencement\",\n    \"Parquet\"\n  ],\n  \"mots_cles\": [\n    \"menuiserie\",\n    \"menuiseries\",\n    \"huisseries\",\n    \"fenêtres\",\n    \"volets\",\n    \"escalier\",\n    \"agencement\",\n    \"parquet\"\n  ],\n  \"jours_par_defaut\": 1,\n  \"delai_minimum_jours\": 7,\n  \"max_annonces\": 15,\n  \"destinataire\": \"gerant@chene-et-cie.demo\"\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000005",
+      "name": "Créer la mémoire si besoin",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        90
+      ],
+      "parameters": {
+        "resource": "table",
+        "operation": "create",
+        "tableName": "veille_boamp_demo",
+        "columns": {
+          "column": [
+            {
+              "name": "idweb",
+              "type": "string"
+            },
+            {
+              "name": "objet",
+              "type": "string"
+            },
+            {
+              "name": "acheteur",
+              "type": "string"
+            },
+            {
+              "name": "departements",
+              "type": "string"
+            },
+            {
+              "name": "parution",
+              "type": "date"
+            },
+            {
+              "name": "date_limite",
+              "type": "date"
+            },
+            {
+              "name": "score",
+              "type": "number"
+            },
+            {
+              "name": "recommandation",
+              "type": "string"
+            },
+            {
+              "name": "raison",
+              "type": "string"
+            },
+            {
+              "name": "url",
+              "type": "string"
+            },
+            {
+              "name": "vu_le",
+              "type": "date"
+            }
+          ]
+        },
+        "options": {
+          "createIfNotExists": true
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000006",
+      "name": "Construire la requête",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Requête au BOAMP : parutions récentes, avis de marché, départements et métiers ciblés. Rien d'IA ici.\nconst r = $('Réglages').first().json;\nconst f = $('Lancer la veille').isExecuted ? $('Lancer la veille').first().json : {};\nconst jours = Math.max(1, Math.min(60, parseInt(f.jours ?? r.jours_par_defaut, 10) || r.jours_par_defaut));\nconst depuis = $now.setZone('Europe/Paris').minus({ days: jours }).toISODate();\nconst q = s => '\"' + String(s).replace(/\"/g, '') + '\"';\nconst metiers = [...r.descripteurs.map(d => 'descripteur_libelle=' + q(d)), ...r.mots_cles.map(m => 'search(objet, ' + q(m) + ')')].join(' or ');\nconst where = `dateparution >= date'${depuis}' and nature=\"APPEL_OFFRE\" and code_departement in (${r.departements.map(q).join(',')}) and (${metiers})`;\nreturn [{ json: { where, depuis, jours } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000007",
+      "name": "Interroger le BOAMP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        90
+      ],
+      "parameters": {
+        "url": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "where",
+              "value": "={{ $json.where }}"
+            },
+            {
+              "name": "select",
+              "value": "idweb,objet,nomacheteur,code_departement,dateparution,datelimitereponse,descripteur_libelle,type_marche,procedure_libelle,url_avis"
+            },
+            {
+              "name": "order_by",
+              "value": "dateparution desc"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000008",
+      "name": "Annonces déjà vues",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        90
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "veille_boamp_demo"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "idweb",
+              "condition": "isNotEmpty"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000009",
+      "name": "Annonces nouvelles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Annonces encore ouvertes, jamais vues, dans la limite du jour. Délai restant calculé sans IA.\nconst r = $('Réglages').first().json;\nconst deja = new Set($('Annonces déjà vues').all().map(i => i.json.idweb).filter(Boolean));\nconst maintenant = $now.setZone('Europe/Paris');\nconst toutes = $('Interroger le BOAMP').first().json.results ?? [];\nconst ouvertes = toutes.map(a => {\n  const limite = a.datelimitereponse ? DateTime.fromISO(a.datelimitereponse).setZone('Europe/Paris') : null;\n  return { idweb: a.idweb, objet: a.objet, acheteur: a.nomacheteur, departements: (a.code_departement ?? []).join(', '), parution: a.dateparution,\n    date_limite: limite ? limite.toISO() : null, date_limite_lisible: limite ? limite.setLocale('fr').toFormat(\"d LLLL 'à' HH'h'mm\") : 'non précisée',\n    jours_restants: limite ? Math.floor(limite.diff(maintenant, 'days').days) : null, descripteurs: (a.descripteur_libelle ?? []).join(', '),\n    type_marche: (a.type_marche ?? []).join(', '), procedure: a.procedure_libelle ?? '', url: a.url_avis };\n}).filter(a => a.jours_restants === null || a.jours_restants >= 0);\nconst nouvelles = ouvertes.filter(a => !deja.has(a.idweb)).slice(0, r.max_annonces);\n$getWorkflowStaticData('global').bilan = { trouvees: toutes.length, ouvertes: ouvertes.length, deja_vues: ouvertes.length - ouvertes.filter(a => !deja.has(a.idweb)).length, total_api: $('Interroger le BOAMP').first().json.total_count ?? toutes.length };\nreturn nouvelles.map(json => ({ json }));"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000010",
+      "name": "Noter l'annonce",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        90
+      ],
+      "parameters": {
+        "text": "=Profil de l'entreprise : {{ $('Réglages').first().json.profil }}\n\nAnnonce BOAMP {{ $json.idweb }}\nObjet : {{ $json.objet }}\nAcheteur : {{ $json.acheteur }}\nType de marché : {{ $json.type_marche }} · procédure : {{ $json.procedure }}\nDescripteurs : {{ $json.descripteurs }}\nDépartements : {{ $json.departements }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"pertinence\": {\n      \"type\": \"number\"\n    },\n    \"recommandation\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"repondre\",\n        \"etudier\",\n        \"ignorer\"\n      ]\n    },\n    \"raison\": {\n      \"type\": \"string\"\n    },\n    \"lot_vise\": {\n      \"type\": \"string\"\n    },\n    \"points_attention\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\n    \"pertinence\",\n    \"recommandation\",\n    \"raison\",\n    \"lot_vise\",\n    \"points_attention\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "Tu aides une petite entreprise à décider à quels marchés publics répondre. Tu reçois son profil et une annonce du BOAMP.\n- pertinence (0 à 100) : 80 et plus = cœur de métier, l'entreprise peut répondre seule ou sur un lot ; 50 à 79 = un lot probablement accessible, à vérifier dans le dossier ; moins de 50 = hors métier ou hors taille.\n- recommandation : repondre, etudier ou ignorer.\n- raison : une phrase factuelle qui justifie la note.\n- lot_vise : le lot ou la partie probablement concernée, ou vide.\n- points_attention : 0 à 3 points à vérifier dans le dossier de consultation (allotissement, qualifications, visite, groupement…), formulés comme des questions.\nUne mission de maîtrise d'œuvre, d'étude ou une fourniture sans pose n'est pas du métier d'un atelier de pose. N'invente aucune information absente de l'annonce."
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000011",
+      "name": "Qwen 3.6 (Ollama, local)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        310
+      ],
+      "parameters": {
+        "model": "qwen3.6:27b-mlx",
+        "options": {
+          "think": false,
+          "temperature": 0,
+          "numCtx": 8192,
+          "keepAlive": "30m"
+        }
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "demoOllamaLocal01",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000012",
+      "name": "Assembler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Une ligne par annonce : données de l'annonce + avis de l'IA + règle fixe sur le délai.\nconst r = $('Réglages').first().json;\nconst annonces = $('Annonces nouvelles').all().map(i => i.json);\nreturn $input.all().map((it, i) => {\n  const a = annonces[i], ia = it.json.output ?? {};\n  let score = Math.max(0, Math.min(100, Math.round(ia.pertinence ?? 0)));\n  const alertes = [];\n  if (a.jours_restants !== null && a.jours_restants < r.delai_minimum_jours) alertes.push('délai court : ' + a.jours_restants + ' jour(s)');\n  const reco = { repondre: 'répondre', etudier: 'étudier', ignorer: 'ignorer' }[ia.recommandation] ?? 'étudier';\n  return { json: { ...a, score, recommandation: reco, raison: ia.raison ?? '', lot_vise: ia.lot_vise ?? '', points: ia.points_attention ?? [], alertes, vu_le: $now.toISO() } };\n});"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000013",
+      "name": "Mémoriser l'annonce",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        90
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "veille_boamp_demo"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false,
+          "value": {
+            "idweb": "={{ $json.idweb }}",
+            "objet": "={{ $json.objet }}",
+            "acheteur": "={{ $json.acheteur }}",
+            "departements": "={{ $json.departements }}",
+            "parution": "={{ $json.parution }}",
+            "date_limite": "={{ $json.date_limite }}",
+            "score": "={{ $json.score }}",
+            "recommandation": "={{ $json.recommandation }}",
+            "raison": "={{ $json.raison }}",
+            "url": "={{ $json.url }}",
+            "vu_le": "={{ $json.vu_le }}"
+          },
+          "schema": [
+            {
+              "id": "idweb",
+              "displayName": "idweb",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "objet",
+              "displayName": "objet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "acheteur",
+              "displayName": "acheteur",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "departements",
+              "displayName": "departements",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "parution",
+              "displayName": "parution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "date_limite",
+              "displayName": "date_limite",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "recommandation",
+              "displayName": "recommandation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "raison",
+              "displayName": "raison",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "vu_le",
+              "displayName": "vu_le",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000014",
+      "name": "Synthèse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        90
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Synthèse du jour, triée par pertinence.\nconst b = $getWorkflowStaticData('global').bilan ?? {};\nconst a = $('Assembler').all().map(i => i.json).sort((x, y) => y.score - x.score);\nreturn [{ json: { bilan: b, nb: a.length, priorite: a.filter(x => x.score >= 70), etudier: a.filter(x => x.score >= 45 && x.score < 70), ecartees: a.filter(x => x.score < 45),\n  date: $now.setZone('Europe/Paris').setLocale('fr').toFormat('cccc d LLLL yyyy'), depuis: $('Construire la requête').first().json.depuis } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8010-000000000015",
+      "name": "Envoyer la synthèse",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        90
+      ],
+      "parameters": {
+        "fromEmail": "veille@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.destinataire }}",
+        "subject": "=Marchés publics · {{ $json.priorite.length }} en priorité, {{ $json.etudier.length }} à regarder · {{ $json.date }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Veille marchés publics · {{ $json.date }} · annonces parues depuis le {{ $json.depuis }}</p>\n<h2 style=\"margin:0 0 6px\">{{ $json.priorite.length }} à étudier en priorité, {{ $json.etudier.length }} à regarder</h2>\n<p style=\"margin:0 0 12px;color:#5E6662;font-size:13px\">{{ $json.bilan.total_api }} annonce(s) correspondant au métier et aux départements · {{ $json.bilan.deja_vues }} déjà vue(s) · {{ $json.nb }} nouvelle(s) analysée(s) par l'IA.</p>\n{{ $json.priorite.length ? '<h3 style=\"margin:16px 0 4px\">En priorité</h3>' + $json.priorite.map(x => '<div style=\"border:1px solid #D8D2C5;border-radius:10px;padding:14px 16px;margin:10px 0\"><div style=\"display:flex;justify-content:space-between;gap:10px\"><b style=\"font-size:15px\">' + x.objet.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</b><span style=\"white-space:nowrap;font-weight:bold;color:' + (x.score >= 70 ? '#315C5A' : '#9E5238') + '\">' + x.score + '/100</span></div><p style=\"margin:6px 0;color:#5E6662;font-size:13px\">' + x.acheteur.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' · dép. ' + x.departements + ' · réponse avant le <b>' + x.date_limite_lisible + '</b>' + (x.jours_restants !== null ? ' (' + x.jours_restants + ' j)' : '') + '</p><p style=\"margin:6px 0;font-size:14px\">' + x.raison.replaceAll('&','&amp;').replaceAll('<','&lt;') + (x.lot_vise ? ' <span style=\"color:#5E6662\">Lot visé : ' + x.lot_vise.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</span>' : '') + '</p>' + (x.alertes.length ? '<p style=\"margin:6px 0;font-size:13px;color:#9E5238\">⚠ ' + x.alertes.join(' · ') + '</p>' : '') + (x.points.length ? '<ul style=\"margin:6px 0;padding-left:18px;font-size:13px;color:#3B4441\">' + x.points.map(p => '<li>' + p.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') + '</ul>' : '') + '<a href=\"' + x.url + '\" style=\"font-size:13px;color:#9E5238;font-weight:bold\">Lire l\\'avis sur le BOAMP →</a></div>').join('') : '' }}\n{{ $json.etudier.length ? '<h3 style=\"margin:16px 0 4px\">À regarder</h3>' + $json.etudier.map(x => '<div style=\"border:1px solid #D8D2C5;border-radius:10px;padding:14px 16px;margin:10px 0\"><div style=\"display:flex;justify-content:space-between;gap:10px\"><b style=\"font-size:15px\">' + x.objet.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</b><span style=\"white-space:nowrap;font-weight:bold;color:' + (x.score >= 70 ? '#315C5A' : '#9E5238') + '\">' + x.score + '/100</span></div><p style=\"margin:6px 0;color:#5E6662;font-size:13px\">' + x.acheteur.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' · dép. ' + x.departements + ' · réponse avant le <b>' + x.date_limite_lisible + '</b>' + (x.jours_restants !== null ? ' (' + x.jours_restants + ' j)' : '') + '</p><p style=\"margin:6px 0;font-size:14px\">' + x.raison.replaceAll('&','&amp;').replaceAll('<','&lt;') + (x.lot_vise ? ' <span style=\"color:#5E6662\">Lot visé : ' + x.lot_vise.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</span>' : '') + '</p>' + (x.alertes.length ? '<p style=\"margin:6px 0;font-size:13px;color:#9E5238\">⚠ ' + x.alertes.join(' · ') + '</p>' : '') + (x.points.length ? '<ul style=\"margin:6px 0;padding-left:18px;font-size:13px;color:#3B4441\">' + x.points.map(p => '<li>' + p.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') + '</ul>' : '') + '<a href=\"' + x.url + '\" style=\"font-size:13px;color:#9E5238;font-weight:bold\">Lire l\\'avis sur le BOAMP →</a></div>').join('') : '' }}\n{{ $json.ecartees.length ? '<h3 style=\"margin:16px 0 4px\">Écartées</h3><ul style=\"font-size:13px;color:#5E6662;padding-left:18px\">' + $json.ecartees.map(x => '<li>' + x.objet.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' (' + x.score + '/100 : ' + x.raison.replaceAll('&','&amp;').replaceAll('<','&lt;') + ')</li>').join('') + '</ul>' : '' }}\n<p style=\"margin-top:16px;font-size:12px;color:#5E6662\">Source : BOAMP, données publiques (DILA). Les notes sont une aide au tri : lisez toujours l'avis et le dossier de consultation avant de décider.</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque matin à 7 h": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lancer la veille": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réglages": {
+      "main": [
+        [
+          {
+            "node": "Créer la mémoire si besoin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer la mémoire si besoin": {
+      "main": [
+        [
+          {
+            "node": "Construire la requête",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construire la requête": {
+      "main": [
+        [
+          {
+            "node": "Interroger le BOAMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interroger le BOAMP": {
+      "main": [
+        [
+          {
+            "node": "Annonces déjà vues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Annonces déjà vues": {
+      "main": [
+        [
+          {
+            "node": "Annonces nouvelles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Annonces nouvelles": {
+      "main": [
+        [
+          {
+            "node": "Noter l'annonce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 3.6 (Ollama, local)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Noter l'annonce",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Noter l'annonce": {
+      "main": [
+        [
+          {
+            "node": "Assembler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assembler": {
+      "main": [
+        [
+          {
+            "node": "Mémoriser l'annonce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mémoriser l'annonce": {
+      "main": [
+        [
+          {
+            "node": "Synthèse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthèse": {
+      "main": [
+        [
+          {
+            "node": "Envoyer la synthèse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

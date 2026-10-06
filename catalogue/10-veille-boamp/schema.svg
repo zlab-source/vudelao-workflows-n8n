@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="300" rx="12" fill="#F5F2EA"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#315C5A"/></marker></defs>
+  <g font-size="13" fill="#1D2422" text-anchor="middle">
+    <rect x="20" y="60" width="130" height="90" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="85" y="94" font-weight="bold">Chaque matin</text><text x="85" y="112" fill="#5E6662" font-size="11">ou à la demande</text>
+    <rect x="175" y="60" width="160" height="90" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="255" y="88" font-weight="bold">API du BOAMP</text><text x="255" y="106" fill="#5E6662" font-size="11">avis parus, vos départements,</text><text x="255" y="122" fill="#5E6662" font-size="11">vos métiers</text>
+    <rect x="360" y="60" width="160" height="90" rx="8" fill="#fff" stroke="#C47A61" stroke-width="1.5"/><text x="440" y="88" font-weight="bold">Tri sans IA</text><text x="440" y="106" fill="#5E6662" font-size="11">déjà vues et closes écartées,</text><text x="440" y="122" fill="#5E6662" font-size="11">délai restant calculé</text>
+    <rect x="545" y="60" width="170" height="90" rx="8" fill="#315C5A"/><text x="630" y="88" font-weight="bold" fill="#fff">IA : votre profil</text><text x="630" y="106" fill="#E5DED3" font-size="11">note, raison, lot visé,</text><text x="630" y="122" fill="#E5DED3" font-size="11">questions à vérifier</text>
+    <rect x="740" y="60" width="200" height="90" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="840" y="88" font-weight="bold">Synthèse par email</text><text x="840" y="106" fill="#5E6662" font-size="11">en priorité · à regarder</text><text x="840" y="122" fill="#5E6662" font-size="11">· écartées</text>
+  </g>
+  <g stroke="#315C5A" stroke-width="2" fill="none" marker-end="url(#a)"><path d="M150 105H171"/><path d="M335 105H356"/><path d="M520 105H541"/><path d="M715 105H736"/></g>
+  <text x="480" y="210" font-size="11" fill="#5E6662" text-anchor="middle">Chaque annonce analysée est mémorisée : elle n'est jamais notée deux fois, et l'historique reste consultable.</text>
+  <text x="480" y="232" font-size="11" fill="#5E6662" text-anchor="middle">Données publiques du BOAMP (DILA) : aucune inscription, aucune clé.</text>
+</svg>
