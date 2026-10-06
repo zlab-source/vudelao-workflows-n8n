@@ -1,0 +1,989 @@
+{
+  "id": "cat06SauvegardeGithub",
+  "name": "Catalogue 06 · Sauvegarde des workflows n8n dans GitHub (démo)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8006-000000000001",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -560
+      ],
+      "parameters": {
+        "content": "## 🗄️ Sauvegarde des workflows n8n dans GitHub\n**Problème :** une mauvaise manipulation, une mise à jour ratée, un serveur perdu… et des mois d'automatisations disparaissent. Sans historique, impossible de revenir en arrière.\n\n**Sauvegarde (chaque nuit, ou à la demande) :**\n1. Lecture de tous les workflows par l'API n8n.\n2. **Nettoyage** : données épinglées, état interne et propriétaire retirés ; **clés écrites en clair masquées** et signalées.\n3. Comparaison avec la dernière sauvegarde : seuls les workflows modifiés partent, **en un seul commit** daté.\n4. Un index lisible, les workflows supprimés archivés, un rapport par email.\n\n**Restauration (formulaire) :** un nom ou un identifiant, une version (commit) facultative : le workflow est recréé en copie inactive.\n\n*Régler une fois le nœud **Réglages** (adresse n8n, dépôt, branche). La version pro ajoute le choix du dépôt par projet, la comparaison lisible entre deux versions, la sauvegarde des identifiants chiffrés et l'alerte en cas d'échec.*",
+        "width": 700,
+        "height": 500,
+        "color": 5
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000002",
+      "name": "Chaque nuit à 2 h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000003",
+      "name": "Sauvegarder maintenant",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        180
+      ],
+      "parameters": {
+        "formTitle": "Sauvegarder les workflows maintenant",
+        "formDescription": "Une note facultative s'ajoute au message du commit.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Note (facultatif)",
+              "fieldName": "note",
+              "placeholder": "Avant la mise à jour de n8n"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Sauvegarder",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Sauvegarde lancée. Le rapport arrive par email."
+            }
+          }
+        }
+      },
+      "webhookId": "6e1f4a30-8c2d-4f5e-9b6a-ca7a00000008"
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000004",
+      "name": "Restaurer un workflow",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        520
+      ],
+      "parameters": {
+        "formTitle": "Restaurer un workflow",
+        "formDescription": "Le workflow est recréé en copie, inactif, à côté de l'original.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Nom ou identifiant du workflow",
+              "fieldName": "workflow",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Version (commit, facultatif : sinon la dernière)",
+              "fieldName": "version"
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "buttonLabel": "Restaurer",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Restauration lancée. Le résultat arrive par email."
+            }
+          }
+        }
+      },
+      "webhookId": "6e1f4a30-8c2d-4f5e-9b6a-ca7a00000009"
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000005",
+      "name": "Réglages",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        180
+      ],
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"n8n_api\": \"http://host.docker.internal:9101\",\n  \"github_api\": \"http://host.docker.internal:9102\",\n  \"depot\": \"chene-et-cie/sauvegardes-n8n\",\n  \"branche\": \"main\",\n  \"dossier\": \"workflows\",\n  \"destinataire\": \"admin@chene-et-cie.demo\"\n}",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000007",
+      "name": "Restauration ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        460,
+        180
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8006-000000000006",
+              "leftValue": "={{ $('Restaurer un workflow').isExecuted }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000008",
+      "name": "Lister les workflows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $('Réglages').first().json.n8n_api }}/api/v1/workflows",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000,
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "cursor",
+                    "value": "={{ $response.body.nextCursor }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.nextCursor }}",
+              "limitPagesFetched": true,
+              "maxRequests": 50
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06ApiN8n01",
+          "name": "API n8n (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000009",
+      "name": "Branche GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/ref/heads/{{ $('Réglages').first().json.branche }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "executeOnce": true
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000010",
+      "name": "Dernier commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/commits/{{ $json.object.sha }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000011",
+      "name": "Fichiers déjà sauvegardés",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/trees/{{ $json.tree.sha }}?recursive=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000012",
+      "name": "Préparer la sauvegarde",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function sha1(bytes) {\n  const ml = bytes.length * 8, avecUn = bytes.length + 1, len = avecUn + ((56 - (avecUn % 64)) + 64) % 64 + 8;\n  const m = new Uint8Array(len); m.set(bytes); m[bytes.length] = 0x80;\n  const dv = new DataView(m.buffer); dv.setUint32(len - 4, ml >>> 0); dv.setUint32(len - 8, Math.floor(ml / 2 ** 32));\n  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0; const w = new Uint32Array(80);\n  for (let i = 0; i < len; i += 64) {\n    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4);\n    for (let t = 16; t < 80; t++) { const x = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]; w[t] = (x << 1) | (x >>> 31); }\n    let a = h0, b = h1, c = h2, d = h3, e = h4;\n    for (let t = 0; t < 80; t++) {\n      const [f, k] = t < 20 ? [(b & c) | (~b & d), 0x5A827999] : t < 40 ? [b ^ c ^ d, 0x6ED9EBA1] : t < 60 ? [(b & c) | (b & d) | (c & d), 0x8F1BBCDC] : [b ^ c ^ d, 0xCA62C1D6];\n      const tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[t]) >>> 0; e = d; d = c; c = ((b << 30) | (b >>> 2)) >>> 0; b = a; a = tmp;\n    }\n    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;\n  }\n  return [h0, h1, h2, h3, h4].map(x => x.toString(16).padStart(8, '0')).join('');\n}\n// SHA d'un fichier tel que git (et GitHub) le calcule : sha1(\"blob <taille>\\0<contenu>\")\nconst shaGit = txt => { const c = Buffer.from(txt, 'utf8'); return sha1(new Uint8Array(Buffer.concat([Buffer.from('blob ' + c.length + '\\0'), c]))); };\n// 1. Nettoyage : ni données épinglées, ni état interne, ni propriétaire, et les secrets écrits en clair sont masqués.\n// 2. Comparaison avec la dernière sauvegarde (SHA git) : seuls les fichiers nouveaux ou modifiés partent dans le commit.\nconst reg = $('Réglages').first().json;\nconst MOTIFS = [/sk-[A-Za-z0-9_-]{20,}/g, /gh[pousr]_[A-Za-z0-9]{30,}/g, /github_pat_[A-Za-z0-9_]{30,}/g, /xox[abpr]-[A-Za-z0-9-]{10,}/g,\n  /AKIA[0-9A-Z]{16}/g, /AIza[0-9A-Za-z_-]{30,}/g, /Bearer\\s+[A-Za-z0-9._~+\\/-]{20,}/gi, /eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}/g];\nconst CLES_SENSIBLES = /^(password|passwd|mot_?de_?passe|api_?key|apikey|token|secret|client_?secret)$/i;\nconst MASQUE = '«secret masqué par la sauvegarde»';\nconst alertes = [];\nfunction masquer(v, wfNom, noeud, cle) {\n  if (typeof v === 'string') {\n    let r = v;\n    if (CLES_SENSIBLES.test(cle ?? '') && v && !v.startsWith('=')) r = MASQUE;\n    for (const m of MOTIFS) r = r.replace(m, MASQUE);\n    if (r !== v) alertes.push({ workflow: wfNom, noeud });\n    return r;\n  }\n  if (Array.isArray(v)) return v.map(x => masquer(x, wfNom, noeud, cle));\n  if (v && typeof v === 'object') {\n    // Paire « name / value » (en-têtes, paramètres) : le nom décide si la valeur est sensible\n    const nomPaire = typeof v.name === 'string' ? v.name : null;\n    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, masquer(x, wfNom, noeud, k === 'value' && nomPaire ? nomPaire : k)]));\n  }\n  return v;\n}\nconst slug = s => String(s).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);\nconst wfs = $('Lister les workflows').all().flatMap(p => p.json.data ?? []);\nif (!wfs.length) throw new Error('Aucun workflow reçu de l\\'API n8n : vérifiez l\\'adresse et la clé.');\nconst existants = new Map(($('Fichiers déjà sauvegardés').first().json.tree ?? []).filter(e => e.type === 'blob').map(e => [e.path, e.sha]));\n\nconst fichiers = [], lignes = [];\nfor (const w of wfs) {\n  const propre = {\n    id: w.id, name: w.name, active: !!w.active, tags: (w.tags ?? []).map(t => t.name ?? t),\n    settings: w.settings ?? {}, connections: w.connections ?? {},\n    nodes: (w.nodes ?? []).map(n => ({ ...n, parameters: masquer(n.parameters ?? {}, w.name, n.name, '') })),\n  };\n  const chemin = reg.dossier + '/' + slug(w.name) + '--' + w.id + '.json';\n  const contenu = JSON.stringify(propre, null, 2) + '\\n';\n  const statut = !existants.has(chemin) ? 'nouveau' : existants.get(chemin) === shaGit(contenu) ? 'inchangé' : 'modifié';\n  if (statut !== 'inchangé') fichiers.push({ path: chemin, mode: '100644', type: 'blob', content: contenu });\n  lignes.push({ nom: w.name, id: w.id, actif: !!w.active, noeuds: propre.nodes.length, chemin, statut,\n    epingles: Object.keys(w.pinData ?? {}).length > 0 });\n}\nconst actuels = new Set(lignes.map(l => l.chemin));\nconst archives = [...existants.keys()].filter(p => p.startsWith(reg.dossier + '/') && !actuels.has(p));\nconst secrets = [...new Map(alertes.map(a => [a.workflow + '|' + a.noeud, a])).values()];\n\n// Index lisible à la racine du dépôt (sans date, pour ne changer que si le contenu change)\nconst index = ['# Sauvegarde des workflows n8n', '', 'Mise à jour automatiquement. Un fichier par workflow, l\\'historique est dans les commits.', '',\n  '| Workflow | Actif | Nœuds | Fichier |', '|---|---|---|---|',\n  ...lignes.slice().sort((a, b) => a.nom.localeCompare(b.nom)).map(l => `| ${l.nom} | ${l.actif ? 'oui' : 'non'} | ${l.noeuds} | [${l.chemin.split('/').pop()}](${l.chemin}) |`), '',\n  ...(secrets.length ? ['## Secrets masqués', '', 'Ces nœuds contenaient une clé écrite en clair. Elle a été masquée dans la sauvegarde ; déplacez-la dans un identifiant n8n.', '',\n    ...secrets.map(s => `- ${s.workflow} › ${s.noeud}`), ''] : []),\n  ...(archives.length ? ['## Archivés', '', 'Workflows supprimés de n8n : leur dernière sauvegarde est conservée.', '', ...archives.map(a => '- ' + a), ''] : []),\n].join('\\n');\nif (existants.get('README.md') !== shaGit(index)) fichiers.push({ path: 'README.md', mode: '100644', type: 'blob', content: index });\n\nconst n = s => lignes.filter(l => l.statut === s).length;\nconst date = $now.setZone('Europe/Paris').setLocale('fr').toFormat(\"d LLLL yyyy 'à' HH'h'mm\");\nconst note = $('Sauvegarder maintenant').isExecuted ? ($('Sauvegarder maintenant').first().json.note || '') : '';\nreturn [{ json: {\n  a_commiter: fichiers.length > 0, fichiers,\n  message: `Sauvegarde du ${date} : ${n('modifié')} modifié(s), ${n('nouveau')} nouveau(x)${note ? ' · ' + note : ''}`,\n  base_commit: $('Branche GitHub').first().json.object.sha, base_tree: $('Dernier commit').first().json.tree.sha,\n  lignes, secrets, archives, total: lignes.length, modifies: n('modifié'), nouveaux: n('nouveau'), inchanges: n('inchangé'),\n  epingles: lignes.filter(l => l.epingles).length,\n} }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000014",
+      "name": "Des changements ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-8006-000000000013",
+              "leftValue": "={{ $json.a_commiter }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000015",
+      "name": "Créer l'arborescence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/trees",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ base_tree: $json.base_tree, tree: $json.fichiers }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000016",
+      "name": "Créer le commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/commits",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $('Préparer la sauvegarde').first().json.message, tree: $json.sha, parents: [$('Préparer la sauvegarde').first().json.base_commit] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000017",
+      "name": "Avancer la branche",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2460,
+        -100
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/refs/heads/{{ $('Réglages').first().json.branche }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sha: $json.sha, force: false }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000018",
+      "name": "Fin de la sauvegarde",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2680,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000019",
+      "name": "Rapport",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Rapport : ce qui a été sauvegardé, et ce qui mérite votre attention.\nconst p = $('Préparer la sauvegarde').first().json;\nconst commit = $('Créer le commit').isExecuted ? $('Créer le commit').first().json : null;\nreturn [{ json: { ...p, commit_sha: commit?.sha ?? null, commit_court: commit ? commit.sha.slice(0, 7) : null,\n  commit_url: commit?.html_url ?? null, depot: $('Réglages').first().json.depot } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000020",
+      "name": "Envoyer le rapport",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3120,
+        0
+      ],
+      "parameters": {
+        "fromEmail": "sauvegardes@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.destinataire }}",
+        "subject": "={{ $json.secrets.length ? '⚠ ' : '' }}Sauvegarde n8n · {{ $json.commit_sha ? $json.modifies + ' modifié(s), ' + $json.nouveaux + ' nouveau(x)' : 'rien de nouveau' }}{{ $json.secrets.length ? ' · ' + $json.secrets.length + ' clé(s) en clair' : '' }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;color:#1D2422\">\n<h2 style=\"margin:0 0 6px\">{{ $json.commit_sha ? 'Sauvegarde effectuée' : 'Rien de nouveau à sauvegarder' }}</h2>\n<p style=\"margin:0 0 14px;color:#5E6662\">{{ $json.total }} workflows · {{ $json.modifies }} modifié(s) · {{ $json.nouveaux }} nouveau(x) · {{ $json.inchanges }} inchangé(s){{ $json.commit_sha ? ' · commit ' + $json.commit_court : '' }}</p>\n{{ $json.secrets.length ? '<p style=\"padding:10px 14px;border-radius:6px;background:#FBEDE6\"><b>⚠ ' + $json.secrets.length + ' clé(s) écrite(s) en clair</b>, masquée(s) dans la sauvegarde. À déplacer dans un identifiant n8n :<br>' + $json.secrets.map(s => '· ' + s.workflow.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' › ' + s.noeud.replaceAll('&','&amp;').replaceAll('<','&lt;')).join('<br>') + '</p>' : '<p style=\"padding:10px 14px;border-radius:6px;background:#E7F0EC\">✓ Aucune clé écrite en clair dans les workflows.</p>' }}\n<table style=\"border-collapse:collapse;width:100%;font-size:14px;margin-top:8px\"><tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Workflow</td><td style=\"border-bottom:1px solid #D8D2C5\">Sauvegarde</td></tr>\n{{ $json.lignes.map(l => '<tr><td style=\"padding:5px 10px 5px 0\">' + l.nom.replaceAll('&','&amp;').replaceAll('<','&lt;') + (l.actif ? '' : ' <span style=\"color:#8A918D\">(inactif)</span>') + '</td><td>' + (l.statut === 'inchangé' ? '<span style=\"color:#5E6662\">inchangé</span>' : '<b style=\"color:#315C5A\">' + l.statut + '</b>') + '</td></tr>').join('') }}</table>\n{{ $json.archives.length ? '<p style=\"margin-top:12px;font-size:14px\">Archivés (supprimés de n8n, sauvegarde conservée) : ' + $json.archives.length + '</p>' : '' }}\n<p style=\"margin-top:16px;font-size:12px;color:#5E6662\">Dépôt {{ $json.depot }}. Les données épinglées ({{ $json.epingles }} workflow(s) concerné(s)), l'état interne et le propriétaire ne sont jamais sauvegardés. Les identifiants n8n restent dans n8n : seuls leurs noms figurent dans les fichiers.</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000021",
+      "name": "Fichiers de la version",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        520
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/git/trees/{{ $('Restaurer un workflow').first().json.version || $('Réglages').first().json.branche }}?recursive=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000022",
+      "name": "Trouver le workflow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Retrouve le fichier du workflow demandé (par identifiant ou par nom) dans la version choisie.\nconst demande = String($('Restaurer un workflow').first().json.workflow ?? '').trim().toLowerCase();\nconst slug = s => String(s).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\nconst dossier = $('Réglages').first().json.dossier + '/';\nconst fichiers = ($json.tree ?? []).filter(e => e.type === 'blob' && e.path.startsWith(dossier) && e.path.endsWith('.json'));\nconst trouve = fichiers.find(f => f.path.toLowerCase().endsWith('--' + demande + '.json')) ?? fichiers.find(f => f.path.split('/').pop().startsWith(slug(demande) + '--'));\nif (!trouve) throw new Error('Aucune sauvegarde ne correspond à « ' + demande + ' » dans cette version.');\nreturn [{ json: { chemin: trouve.path } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000023",
+      "name": "Lire la sauvegarde",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        520
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Réglages').first().json.github_api }}/repos/{{ $('Réglages').first().json.depot }}/contents/{{ $json.chemin }}?ref={{ $('Restaurer un workflow').first().json.version || $('Réglages').first().json.branche }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06Github01",
+          "name": "GitHub (démo)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000024",
+      "name": "Préparer la copie",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Reconstruit le workflow pour l'API n8n : il est recréé en copie, inactif, sans toucher à l'original.\nconst w = JSON.parse(Buffer.from($json.content, 'base64').toString('utf8'));\nconst version = $('Restaurer un workflow').first().json.version || $('Réglages').first().json.branche;\nconst AUTORISES = ['saveExecutionProgress', 'saveManualExecutions', 'saveDataErrorExecution', 'saveDataSuccessExecution', 'executionTimeout', 'errorWorkflow', 'timezone', 'executionOrder', 'callerPolicy'];\nconst settings = Object.fromEntries(Object.entries(w.settings ?? {}).filter(([k]) => AUTORISES.includes(k)));\nconst masques = (JSON.stringify(w.nodes).match(/secret masqué par la sauvegarde/g) ?? []).length;\nconst date = $now.setZone('Europe/Paris').toFormat('dd/LL/yyyy');\nreturn [{ json: { corps: { name: w.name + ' (restauré le ' + date + ')', nodes: w.nodes, connections: w.connections, settings },\n  origine: w.name, version, masques } }];"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000025",
+      "name": "Recréer dans n8n",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Réglages').first().json.n8n_api }}/api/v1/workflows",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.corps) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cat06ApiN8n01",
+          "name": "API n8n (démo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8006-000000000026",
+      "name": "Confirmer la restauration",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1800,
+        520
+      ],
+      "parameters": {
+        "fromEmail": "sauvegardes@chene-et-cie.demo",
+        "toEmail": "={{ $('Réglages').first().json.destinataire }}",
+        "subject": "=Workflow restauré · {{ $('Préparer la copie').first().json.origine }}",
+        "emailFormat": "html",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#1D2422\"><h2 style=\"margin:0 0 8px\">Workflow restauré</h2><p>« {{ $('Préparer la copie').first().json.origine }} » a été recréé dans n8n sous le nom « {{ $json.name }} » (identifiant {{ $json.id }}), <b>inactif</b>, à partir de la version {{ $('Préparer la copie').first().json.version }}.</p>{{ $('Préparer la copie').first().json.masques ? '<p style=\"padding:10px 14px;border-radius:6px;background:#FBEDE6\">⚠ ' + $('Préparer la copie').first().json.masques + ' clé(s) avaient été masquées à la sauvegarde : à ressaisir dans un identifiant n8n avant d\\'activer.</p>' : '' }}<p style=\"font-size:13px;color:#5E6662\">Vérifiez les identifiants de chaque nœud, puis activez la copie et désactivez l'ancienne version si besoin.</p></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "demoSmtpMailpit01",
+          "name": "SMTP Mailpit (démo)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque nuit à 2 h": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarder maintenant": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurer un workflow": {
+      "main": [
+        [
+          {
+            "node": "Réglages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réglages": {
+      "main": [
+        [
+          {
+            "node": "Restauration ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restauration ?": {
+      "main": [
+        [
+          {
+            "node": "Fichiers de la version",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lister les workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lister les workflows": {
+      "main": [
+        [
+          {
+            "node": "Branche GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Branche GitHub": {
+      "main": [
+        [
+          {
+            "node": "Dernier commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dernier commit": {
+      "main": [
+        [
+          {
+            "node": "Fichiers déjà sauvegardés",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fichiers déjà sauvegardés": {
+      "main": [
+        [
+          {
+            "node": "Préparer la sauvegarde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la sauvegarde": {
+      "main": [
+        [
+          {
+            "node": "Des changements ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Des changements ?": {
+      "main": [
+        [
+          {
+            "node": "Créer l'arborescence",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin de la sauvegarde",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Créer l'arborescence": {
+      "main": [
+        [
+          {
+            "node": "Créer le commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer le commit": {
+      "main": [
+        [
+          {
+            "node": "Avancer la branche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avancer la branche": {
+      "main": [
+        [
+          {
+            "node": "Fin de la sauvegarde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fin de la sauvegarde": {
+      "main": [
+        [
+          {
+            "node": "Rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rapport": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fichiers de la version": {
+      "main": [
+        [
+          {
+            "node": "Trouver le workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trouver le workflow": {
+      "main": [
+        [
+          {
+            "node": "Lire la sauvegarde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire la sauvegarde": {
+      "main": [
+        [
+          {
+            "node": "Préparer la copie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la copie": {
+      "main": [
+        [
+          {
+            "node": "Recréer dans n8n",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recréer dans n8n": {
+      "main": [
+        [
+          {
+            "node": "Confirmer la restauration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris",
+    "errorWorkflow": "À_RENSEIGNER_ID_DU_WORKFLOW_D_ERREUR"
+  },
+  "pinData": {}
+}

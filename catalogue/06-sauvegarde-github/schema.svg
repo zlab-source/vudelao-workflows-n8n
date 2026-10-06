@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 340" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="340" rx="12" fill="#F5F2EA"/>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#315C5A"/></marker></defs>
+  <g font-size="11" fill="#5E6662" font-weight="bold" letter-spacing="1.5"><text x="24" y="34">SAUVEGARDE · CHAQUE NUIT OU À LA DEMANDE</text><text x="24" y="234">RESTAURATION · FORMULAIRE</text></g>
+  <g font-size="13" fill="#1D2422" text-anchor="middle">
+    <rect x="20" y="50" width="130" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="85" y="84" font-weight="bold">API n8n</text><text x="85" y="103" fill="#5E6662" font-size="11">tous les workflows</text>
+    <rect x="175" y="50" width="170" height="80" rx="8" fill="#fff" stroke="#C47A61" stroke-width="1.5"/><text x="260" y="78" font-weight="bold">Nettoyage</text><text x="260" y="96" fill="#5E6662" font-size="11">clés en clair masquées</text><text x="260" y="112" fill="#5E6662" font-size="11">données épinglées retirées</text>
+    <rect x="370" y="50" width="170" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="455" y="78" font-weight="bold">Comparaison</text><text x="455" y="96" fill="#5E6662" font-size="11">empreinte git de chaque</text><text x="455" y="112" fill="#5E6662" font-size="11">fichier : modifiés seulement</text>
+    <rect x="565" y="50" width="170" height="80" rx="8" fill="#315C5A"/><text x="650" y="84" font-weight="bold" fill="#fff">Un commit daté</text><text x="650" y="103" fill="#E5DED3" font-size="11">GitHub · historique complet</text>
+    <rect x="760" y="50" width="180" height="80" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="850" y="84" font-weight="bold">Rapport par email</text><text x="850" y="103" fill="#5E6662" font-size="11">ou « rien de nouveau »</text>
+
+    <rect x="20" y="250" width="200" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="120" y="280" font-weight="bold">Nom ou identifiant</text><text x="120" y="298" fill="#5E6662" font-size="11">+ version (commit) facultative</text>
+    <rect x="250" y="250" width="200" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="350" y="280" font-weight="bold">Lecture dans GitHub</text><text x="350" y="298" fill="#5E6662" font-size="11">la version demandée</text>
+    <rect x="480" y="250" width="220" height="70" rx="8" fill="#315C5A"/><text x="590" y="280" font-weight="bold" fill="#fff">Recréé dans n8n</text><text x="590" y="298" fill="#E5DED3" font-size="11">en copie inactive</text>
+    <rect x="730" y="250" width="210" height="70" rx="8" fill="#fff" stroke="#D8D2C5"/><text x="835" y="280" font-weight="bold">Confirmation</text><text x="835" y="298" fill="#5E6662" font-size="11">clés masquées à ressaisir</text>
+  </g>
+  <g stroke="#315C5A" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M150 90H171"/><path d="M345 90H366"/><path d="M540 90H561"/><path d="M735 90H756"/>
+    <path d="M220 285H246"/><path d="M450 285H476"/><path d="M700 285H726"/>
+  </g>
+  <text x="480" y="185" font-size="11" fill="#5E6662" text-anchor="middle">Un workflow supprimé de n8n n'est jamais effacé de GitHub : sa dernière sauvegarde est archivée.</text>
+</svg>

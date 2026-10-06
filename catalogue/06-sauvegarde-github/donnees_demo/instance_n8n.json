@@ -1,0 +1,3280 @@
+[
+  {
+    "id": "cat01FacturesIA",
+    "name": "Catalogue 01 · Factures fournisseurs → lecture IA locale → comptabilité (démo)",
+    "active": true,
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8001-000000000002",
+        "name": "Note 1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -40,
+          -460
+        ],
+        "parameters": {
+          "content": "## 🧾 Factures fournisseurs → IA locale → comptabilité\n**Problème :** saisir chaque facture fournisseur à la main prend du temps, et les erreurs (montant faux, doublon, facture payée deux fois) coûtent cher.\n\n**Solution :**\n1. On dépose une facture PDF.\n2. Une **IA locale** en extrait fournisseur, SIRET, numéro, dates, montants et lignes.\n3. Des **contrôles automatiques** vérifient HT + TVA = TTC, la somme des lignes, le SIRET (clé de Luhn), les dates et les **doublons**.\n4. L'**écriture comptable** est proposée (charge, TVA déductible 445660, fournisseur 401).\n5. Un récapitulatif part à la comptabilité ; la facture est enregistrée si elle n'est pas un doublon.\n\n*Démo sur données fictives. La version pro ajoute les photos et scans (vision), les factures électroniques Factur-X, la boîte mail comme déclencheur et l'export vers Pennylane, Axonaut ou un fichier FEC.*",
+          "width": 620,
+          "height": 420,
+          "color": 5
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000003",
+        "name": "Déposer une facture",
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.5,
+        "position": [
+          0,
+          100
+        ],
+        "parameters": {
+          "formTitle": "Déposer une facture fournisseur",
+          "formDescription": "Démo : déposez une facture PDF. En production, le déclencheur est la boîte mail dédiée aux factures.",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Facture (PDF)",
+                "fieldName": "facture",
+                "fieldType": "file",
+                "requiredField": true,
+                "multipleFiles": false,
+                "acceptFileTypes": ".pdf"
+              }
+            ]
+          },
+          "responseMode": "onReceived",
+          "options": {
+            "buttonLabel": "Analyser la facture",
+            "respondWithOptions": {
+              "values": {
+                "respondWith": "text",
+                "formSubmittedText": "Facture reçue : analyse en cours. Le récapitulatif arrive dans la boîte de la comptabilité (Mailpit : http://localhost:8025)."
+              }
+            }
+          }
+        },
+        "webhookId": "7f3c2a10-0d1e-4b6a-9c11-ca7a00000001"
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000004",
+        "name": "Créer la table si besoin",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          220,
+          100
+        ],
+        "parameters": {
+          "resource": "table",
+          "operation": "create",
+          "tableName": "factures_fournisseurs_demo",
+          "columns": {
+            "column": [
+              {
+                "name": "fournisseur",
+                "type": "string"
+              },
+              {
+                "name": "siret",
+                "type": "string"
+              },
+              {
+                "name": "numero",
+                "type": "string"
+              },
+              {
+                "name": "date_facture",
+                "type": "date"
+              },
+              {
+                "name": "echeance",
+                "type": "date"
+              },
+              {
+                "name": "montant_ht",
+                "type": "number"
+              },
+              {
+                "name": "montant_tva",
+                "type": "number"
+              },
+              {
+                "name": "montant_ttc",
+                "type": "number"
+              },
+              {
+                "name": "categorie",
+                "type": "string"
+              },
+              {
+                "name": "compte",
+                "type": "string"
+              },
+              {
+                "name": "statut",
+                "type": "string"
+              },
+              {
+                "name": "anomalies",
+                "type": "string"
+              },
+              {
+                "name": "fichier",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {
+            "createIfNotExists": true
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000005",
+        "name": "Préparer le fichier",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Récupère le fichier déposé (quel que soit le nom du champ) et le place dans « data ».\nconst src = $('Déposer une facture').first();\nconst fichier = Object.values(src.binary ?? {})[0];\nif (!fichier) throw new Error('Aucun fichier reçu : déposez une facture au format PDF.');\nreturn [{ json: { nom_fichier: fichier.fileName }, binary: { data: fichier } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000006",
+        "name": "Extraire le texte du PDF",
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1,
+        "position": [
+          660,
+          100
+        ],
+        "parameters": {
+          "operation": "pdf",
+          "binaryPropertyName": "data",
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000007",
+        "name": "Lecture IA de la facture",
+        "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+        "typeVersion": 1.2,
+        "position": [
+          880,
+          100
+        ],
+        "parameters": {
+          "text": "=Texte de la facture :\n\n{{ $json.text }}",
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"fournisseur\": {\n      \"type\": \"string\"\n    },\n    \"siret\": {\n      \"type\": \"string\"\n    },\n    \"tva_intracom\": {\n      \"type\": \"string\"\n    },\n    \"numero_facture\": {\n      \"type\": \"string\"\n    },\n    \"date_facture\": {\n      \"type\": \"string\",\n      \"description\": \"AAAA-MM-JJ\"\n    },\n    \"date_echeance\": {\n      \"type\": \"string\",\n      \"description\": \"AAAA-MM-JJ ou vide\"\n    },\n    \"montant_ht\": {\n      \"type\": \"number\"\n    },\n    \"taux_tva\": {\n      \"type\": \"number\",\n      \"description\": \"Taux principal en pourcentage, ex. 20\"\n    },\n    \"montant_tva\": {\n      \"type\": \"number\"\n    },\n    \"montant_ttc\": {\n      \"type\": \"number\"\n    },\n    \"iban\": {\n      \"type\": \"string\"\n    },\n    \"categorie\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"matieres_premieres\",\n        \"marchandises\",\n        \"fournitures\",\n        \"sous_traitance\",\n        \"energie\",\n        \"honoraires\",\n        \"transport\",\n        \"autre\"\n      ]\n    },\n    \"lignes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"designation\": {\n            \"type\": \"string\"\n          },\n          \"quantite\": {\n            \"type\": \"number\"\n          },\n          \"prix_unitaire_ht\": {\n            \"type\": \"number\"\n          },\n          \"total_ht\": {\n            \"type\": \"number\"\n          }\n        }\n      }\n    }\n  },\n  \"required\": [\n    \"fournisseur\",\n    \"numero_facture\",\n    \"date_facture\",\n    \"montant_ht\",\n    \"montant_tva\",\n    \"montant_ttc\",\n    \"categorie\"\n  ]\n}",
+          "options": {
+            "systemPromptTemplate": "Tu es un assistant comptable. Tu lis le texte d'une facture fournisseur reçue par une TPE française et tu en extrais les données.\nRègles strictes :\n- Montants : nombres décimaux avec un point (ex. 1296.00), sans symbole ni espace.\n- Dates : format AAAA-MM-JJ. Si l'échéance n'est pas indiquée, laisse le champ vide.\n- SIRET : 14 chiffres, sans espace. Numéro de TVA intracommunautaire tel qu'écrit.\n- N'invente rien : si une information est absente, laisse le champ vide (ou 0 pour un montant absent).\n- categorie : la nature de la dépense pour l'acheteur (matières premières, marchandises, fournitures, sous-traitance, énergie, honoraires, transport, autre).\nRéponds uniquement avec les champs demandés."
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000008",
+        "name": "Qwen 3.6 (Ollama, local)",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          880,
+          320
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "think": false,
+            "temperature": 0,
+            "numCtx": 8192,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000009",
+        "name": "Factures déjà enregistrées",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          1120,
+          100
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "get",
+          "dataTableId": {
+            "__rl": true,
+            "mode": "name",
+            "value": "factures_fournisseurs_demo"
+          },
+          "matchType": "allConditions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "numero",
+                "condition": "eq",
+                "keyValue": "={{ $json.output.numero_facture }}"
+              }
+            ]
+          },
+          "returnAll": true
+        },
+        "alwaysOutputData": true
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000010",
+        "name": "Contrôles et écriture comptable",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1340,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Contrôles de cohérence, détection de doublon et écriture comptable (plan comptable général).\nconst ia = $('Lecture IA de la facture').first().json.output;\nconst fichier = $('Préparer le fichier').first().json.nom_fichier;\nconst num = s => Math.round(Number(String(s ?? 0).replace(',', '.')) * 100) / 100;\nconst ht = num(ia.montant_ht), tva = num(ia.montant_tva), ttc = num(ia.montant_ttc);\nconst siret = String(ia.siret ?? '').replace(/\\D/g, '');\nconst norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');\n\nconst luhn = s => { let sum = 0; for (let i = 0; i < s.length; i++) { let n = +s[s.length - 1 - i]; if (i % 2) { n *= 2; if (n > 9) n -= 9; } sum += n; } return sum % 10 === 0; };\nconst sommeLignes = Math.round((ia.lignes ?? []).reduce((s, l) => s + num(l.total_ht || (num(l.quantite) * num(l.prix_unitaire_ht))), 0) * 100) / 100;\nconst deja = $input.all().map(i => i.json).filter(r => r && r.numero && norm(r.numero) === norm(ia.numero_facture) && norm(r.fournisseur) === norm(ia.fournisseur));\n\nconst controles = [\n  { label: 'HT + TVA = TTC', ok: Math.abs(ht + tva - ttc) <= 0.02, detail: `${ht.toFixed(2)} + ${tva.toFixed(2)} = ${(ht + tva).toFixed(2)} € (facture : ${ttc.toFixed(2)} €)` },\n  { label: 'Somme des lignes = total HT', ok: !(ia.lignes ?? []).length || Math.abs(sommeLignes - ht) <= 0.02, detail: `lignes : ${sommeLignes.toFixed(2)} € · total HT : ${ht.toFixed(2)} €` },\n  { label: 'SIRET valide', ok: /^\\d{14}$/.test(siret) && luhn(siret), detail: siret || 'absent' },\n  { label: 'Date de facture lisible', ok: !isNaN(Date.parse(ia.date_facture)), detail: ia.date_facture || 'absente' },\n  { label: 'Échéance postérieure à la facture', ok: !ia.date_echeance || Date.parse(ia.date_echeance) >= Date.parse(ia.date_facture), detail: ia.date_echeance || 'non précisée' },\n  { label: 'Pas de doublon', ok: deja.length === 0, detail: deja.length ? 'déjà enregistrée' : 'nouvelle facture' },\n];\nconst anomalies = controles.filter(c => !c.ok).map(c => c.label);\nconst doublon = deja.length > 0;\n\nconst comptes = {\n  matieres_premieres: ['601000', 'Achats de matières premières'], marchandises: ['607000', 'Achats de marchandises'],\n  fournitures: ['606300', \"Fournitures d'entretien et petit équipement\"], sous_traitance: ['611000', 'Sous-traitance générale'],\n  energie: ['606100', 'Fournitures non stockables (eau, énergie)'], honoraires: ['622600', 'Honoraires'],\n  transport: ['624100', 'Transports sur achats'], autre: ['628000', 'Divers'],\n};\nconst [compte, libCompte] = comptes[ia.categorie] ?? comptes.autre;\nconst compteFournisseur = '401' + norm(ia.fournisseur).toUpperCase().slice(0, 5);\nconst libelle = `${ia.fournisseur} · ${ia.numero_facture}`;\nconst ecriture = [\n  { compte, libelle: libCompte, debit: ht, credit: 0 },\n  { compte: '445660', libelle: 'TVA déductible sur biens et services', debit: tva, credit: 0 },\n  { compte: compteFournisseur, libelle: 'Fournisseur ' + ia.fournisseur, debit: 0, credit: ttc },\n];\nconst statut = doublon ? 'doublon' : anomalies.length ? 'a_verifier' : 'prete';\nreturn [{ json: {\n  fournisseur: ia.fournisseur, siret, tva_intracom: ia.tva_intracom ?? '', numero: ia.numero_facture,\n  date_facture: ia.date_facture, echeance: ia.date_echeance || null, montant_ht: ht, montant_tva: tva, montant_ttc: ttc,\n  categorie: ia.categorie, compte, statut, anomalies: anomalies.join(' · '), fichier,\n  doublon, controles, ecriture, libelle, lignes: ia.lignes ?? [],\n} }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000012",
+        "name": "Nouvelle facture ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1560,
+          100
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "00000000-0000-4000-8001-000000000011",
+                "leftValue": "={{ $json.doublon }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "false",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000013",
+        "name": "Enregistrer la facture",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          1780,
+          0
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "__rl": true,
+            "mode": "name",
+            "value": "factures_fournisseurs_demo"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "matchingColumns": [],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false,
+            "value": {
+              "fournisseur": "={{ $json.fournisseur }}",
+              "siret": "={{ $json.siret }}",
+              "numero": "={{ $json.numero }}",
+              "date_facture": "={{ $json.date_facture }}",
+              "echeance": "={{ $json.echeance }}",
+              "montant_ht": "={{ $json.montant_ht }}",
+              "montant_tva": "={{ $json.montant_tva }}",
+              "montant_ttc": "={{ $json.montant_ttc }}",
+              "categorie": "={{ $json.categorie }}",
+              "compte": "={{ $json.compte }}",
+              "statut": "={{ $json.statut }}",
+              "anomalies": "={{ $json.anomalies }}",
+              "fichier": "={{ $json.fichier }}"
+            },
+            "schema": [
+              {
+                "id": "fournisseur",
+                "displayName": "fournisseur",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "siret",
+                "displayName": "siret",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "numero",
+                "displayName": "numero",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "date_facture",
+                "displayName": "date_facture",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "echeance",
+                "displayName": "echeance",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "montant_ht",
+                "displayName": "montant_ht",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "montant_tva",
+                "displayName": "montant_tva",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "montant_ttc",
+                "displayName": "montant_ttc",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "categorie",
+                "displayName": "categorie",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "compte",
+                "displayName": "compte",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "statut",
+                "displayName": "statut",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "anomalies",
+                "displayName": "anomalies",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "fichier",
+                "displayName": "fichier",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000014",
+        "name": "Récapitulatif à la comptabilité",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          2000,
+          0
+        ],
+        "parameters": {
+          "fromEmail": "factures@chene-et-cie.demo",
+          "toEmail": "compta@chene-et-cie.demo",
+          "subject": "={{ $('Contrôles et écriture comptable').item.json.statut === 'prete' ? '✓' : '⚠' }} Facture {{ $('Contrôles et écriture comptable').item.json.fournisseur }} · {{ $('Contrôles et écriture comptable').item.json.numero }} · {{ $('Contrôles et écriture comptable').item.json.montant_ttc.toFixed(2) }} € TTC",
+          "emailFormat": "html",
+          "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Facture fournisseur lue automatiquement · {{ $('Contrôles et écriture comptable').item.json.fichier }}</p>\n<h2 style=\"margin:0 0 12px\">{{ $('Contrôles et écriture comptable').item.json.fournisseur }} · {{ $('Contrôles et écriture comptable').item.json.numero }}</h2>\n<p style=\"padding:10px 14px;border-radius:6px;background:{{ $('Contrôles et écriture comptable').item.json.statut === 'prete' ? '#E7F0EC' : '#FBEDE6' }}\">\n<b>{{ $('Contrôles et écriture comptable').item.json.statut === 'prete' ? '✓ Prête à comptabiliser' : $('Contrôles et écriture comptable').item.json.statut === 'doublon' ? '⚠ Doublon : facture déjà enregistrée, non ajoutée' : '⚠ À vérifier : ' + $('Contrôles et écriture comptable').item.json.anomalies }}</b></p>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">\n<tr><td style=\"padding:5px 0;color:#5E6662\">Date</td><td>{{ $('Contrôles et écriture comptable').item.json.date_facture }}</td><td style=\"color:#5E6662\">Échéance</td><td>{{ $('Contrôles et écriture comptable').item.json.echeance || '—' }}</td></tr>\n<tr><td style=\"padding:5px 0;color:#5E6662\">Total HT</td><td>{{ $('Contrôles et écriture comptable').item.json.montant_ht.toFixed(2) }} €</td><td style=\"color:#5E6662\">TVA</td><td>{{ $('Contrôles et écriture comptable').item.json.montant_tva.toFixed(2) }} €</td></tr>\n<tr><td style=\"padding:5px 0;color:#5E6662\">Total TTC</td><td><b>{{ $('Contrôles et écriture comptable').item.json.montant_ttc.toFixed(2) }} €</b></td><td style=\"color:#5E6662\">SIRET</td><td>{{ $('Contrôles et écriture comptable').item.json.siret || '—' }}</td></tr>\n</table>\n<h3 style=\"margin:18px 0 6px\">Contrôles</h3>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">{{ $('Contrôles et écriture comptable').item.json.controles.map(c => '<tr><td style=\"padding:4px 8px 4px 0\">' + (c.ok ? '✅' : '⚠️') + '</td><td style=\"padding:4px 0\">' + c.label + '</td><td style=\"padding:4px 0;color:#5E6662\">' + c.detail + '</td></tr>').join('') }}</table>\n<h3 style=\"margin:18px 0 6px\">Écriture comptable proposée (journal des achats)</h3>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">\n<tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Compte</td><td style=\"border-bottom:1px solid #D8D2C5\">Libellé</td><td style=\"text-align:right;border-bottom:1px solid #D8D2C5\">Débit</td><td style=\"text-align:right;border-bottom:1px solid #D8D2C5\">Crédit</td></tr>\n{{ $('Contrôles et écriture comptable').item.json.ecriture.map(e => '<tr><td style=\"padding:4px 0\">' + e.compte + '</td><td>' + e.libelle + '</td><td style=\"text-align:right\">' + (e.debit ? e.debit.toFixed(2) + ' €' : '') + '</td><td style=\"text-align:right\">' + (e.credit ? e.credit.toFixed(2) + ' €' : '') + '</td></tr>').join('') }}\n</table>\n<p style=\"margin-top:18px;font-size:12px;color:#5E6662\">Lecture par une IA locale (Ollama) : la facture n'a quitté aucun serveur. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+          "options": {
+            "appendAttribution": false
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8001-000000000015",
+        "name": "Signaler le doublon",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          1780,
+          220
+        ],
+        "parameters": {
+          "fromEmail": "factures@chene-et-cie.demo",
+          "toEmail": "compta@chene-et-cie.demo",
+          "subject": "=⚠ Doublon ignoré · {{ $json.fournisseur }} · {{ $json.numero }}",
+          "emailFormat": "html",
+          "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Facture fournisseur lue automatiquement · {{ $json.fichier }}</p>\n<h2 style=\"margin:0 0 12px\">{{ $json.fournisseur }} · {{ $json.numero }}</h2>\n<p style=\"padding:10px 14px;border-radius:6px;background:{{ $json.statut === 'prete' ? '#E7F0EC' : '#FBEDE6' }}\">\n<b>{{ $json.statut === 'prete' ? '✓ Prête à comptabiliser' : $json.statut === 'doublon' ? '⚠ Doublon : facture déjà enregistrée, non ajoutée' : '⚠ À vérifier : ' + $json.anomalies }}</b></p>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">\n<tr><td style=\"padding:5px 0;color:#5E6662\">Date</td><td>{{ $json.date_facture }}</td><td style=\"color:#5E6662\">Échéance</td><td>{{ $json.echeance || '—' }}</td></tr>\n<tr><td style=\"padding:5px 0;color:#5E6662\">Total HT</td><td>{{ $json.montant_ht.toFixed(2) }} €</td><td style=\"color:#5E6662\">TVA</td><td>{{ $json.montant_tva.toFixed(2) }} €</td></tr>\n<tr><td style=\"padding:5px 0;color:#5E6662\">Total TTC</td><td><b>{{ $json.montant_ttc.toFixed(2) }} €</b></td><td style=\"color:#5E6662\">SIRET</td><td>{{ $json.siret || '—' }}</td></tr>\n</table>\n<h3 style=\"margin:18px 0 6px\">Contrôles</h3>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">{{ $json.controles.map(c => '<tr><td style=\"padding:4px 8px 4px 0\">' + (c.ok ? '✅' : '⚠️') + '</td><td style=\"padding:4px 0\">' + c.label + '</td><td style=\"padding:4px 0;color:#5E6662\">' + c.detail + '</td></tr>').join('') }}</table>\n<h3 style=\"margin:18px 0 6px\">Écriture comptable proposée (journal des achats)</h3>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\">\n<tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Compte</td><td style=\"border-bottom:1px solid #D8D2C5\">Libellé</td><td style=\"text-align:right;border-bottom:1px solid #D8D2C5\">Débit</td><td style=\"text-align:right;border-bottom:1px solid #D8D2C5\">Crédit</td></tr>\n{{ $json.ecriture.map(e => '<tr><td style=\"padding:4px 0\">' + e.compte + '</td><td>' + e.libelle + '</td><td style=\"text-align:right\">' + (e.debit ? e.debit.toFixed(2) + ' €' : '') + '</td><td style=\"text-align:right\">' + (e.credit ? e.credit.toFixed(2) + ' €' : '') + '</td></tr>').join('') }}\n</table>\n<p style=\"margin-top:18px;font-size:12px;color:#5E6662\">Lecture par une IA locale (Ollama) : la facture n'a quitté aucun serveur. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+          "options": {
+            "appendAttribution": false
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Déposer une facture": {
+        "main": [
+          [
+            {
+              "node": "Créer la table si besoin",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Créer la table si besoin": {
+        "main": [
+          [
+            {
+              "node": "Préparer le fichier",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Préparer le fichier": {
+        "main": [
+          [
+            {
+              "node": "Extraire le texte du PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extraire le texte du PDF": {
+        "main": [
+          [
+            {
+              "node": "Lecture IA de la facture",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 (Ollama, local)": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Lecture IA de la facture",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Lecture IA de la facture": {
+        "main": [
+          [
+            {
+              "node": "Factures déjà enregistrées",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Factures déjà enregistrées": {
+        "main": [
+          [
+            {
+              "node": "Contrôles et écriture comptable",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Contrôles et écriture comptable": {
+        "main": [
+          [
+            {
+              "node": "Nouvelle facture ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Nouvelle facture ?": {
+        "main": [
+          [
+            {
+              "node": "Enregistrer la facture",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Signaler le doublon",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Enregistrer la facture": {
+        "main": [
+          [
+            {
+              "node": "Récapitulatif à la comptabilité",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Europe/Paris",
+      "errorWorkflow": "supModeleClient01"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": [
+      {
+        "id": "t1",
+        "name": "catalogue"
+      }
+    ],
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-cat01FacturesIA",
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ]
+  },
+  {
+    "id": "cat02AgentHitl",
+    "name": "Catalogue 02 · Agent service client · outils MCP + validation humaine (démo)",
+    "active": true,
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8022-000000000005",
+        "name": "Note 5",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -60,
+          -500
+        ],
+        "parameters": {
+          "content": "## 🤖 Agent IA avec outils MCP et validation humaine\n**Problème :** un agent IA qui agit seul inquiète, à juste titre. Un agent qui ne fait que parler n'aide pas beaucoup.\n\n**Solution :**\n1. Une demande client arrive.\n2. L'agent (IA locale) **consulte les données via MCP** : commande, politique de service. Lecture libre.\n3. Pour toute **action sensible** (ici, accorder un geste commercial), l'outil est **verrouillé** : le gérant reçoit un email avec deux boutons, *Accepter* ou *Refuser*. Rien ne se passe sans son accord.\n4. L'agent rédige la réponse en tenant compte de la décision, puis l'envoie au client.\n\n*Démo sur données fictives. La version pro ajoute la boîte mail comme déclencheur, le brouillon à relire avant envoi, la validation sur Telegram ou Slack et l'historique des décisions.*",
+          "width": 640,
+          "height": 440,
+          "color": 5
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000006",
+        "name": "Demande client",
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.5,
+        "position": [
+          0,
+          100
+        ],
+        "parameters": {
+          "formTitle": "Contacter le service client",
+          "formDescription": "Démo : une demande client. En production, le déclencheur est la boîte mail du service client.",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Nom",
+                "fieldName": "nom",
+                "requiredField": true
+              },
+              {
+                "fieldLabel": "Email",
+                "fieldName": "email",
+                "fieldType": "email",
+                "requiredField": true
+              },
+              {
+                "fieldLabel": "Numéro de commande",
+                "fieldName": "commande",
+                "placeholder": "CC-1038"
+              },
+              {
+                "fieldLabel": "Votre message",
+                "fieldName": "message",
+                "fieldType": "textarea",
+                "requiredField": true
+              }
+            ]
+          },
+          "responseMode": "onReceived",
+          "options": {
+            "buttonLabel": "Envoyer",
+            "respondWithOptions": {
+              "values": {
+                "respondWith": "text",
+                "formSubmittedText": "Merci, votre demande est bien reçue. Vous recevrez une réponse par email."
+              }
+            }
+          }
+        },
+        "webhookId": "5b9e1f40-2c3d-4e5f-8a6b-ca7a00000003"
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000007",
+        "name": "Créer la table si besoin",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          220,
+          100
+        ],
+        "parameters": {
+          "resource": "table",
+          "operation": "create",
+          "tableName": "gestes_commerciaux_demo",
+          "columns": {
+            "column": [
+              {
+                "name": "commande",
+                "type": "string"
+              },
+              {
+                "name": "client",
+                "type": "string"
+              },
+              {
+                "name": "montant",
+                "type": "number"
+              },
+              {
+                "name": "motif",
+                "type": "string"
+              },
+              {
+                "name": "accorde_le",
+                "type": "date"
+              }
+            ]
+          },
+          "options": {
+            "createIfNotExists": true
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000008",
+        "name": "Assistant service client",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          480,
+          100
+        ],
+        "parameters": {
+          "promptType": "define",
+          "text": "=Demande reçue du client.\nNom : {{ $('Demande client').item.json.nom }}\nEmail : {{ $('Demande client').item.json.email }}\nNuméro de commande : {{ $('Demande client').item.json.commande || 'non précisé' }}\nMessage :\n{{ $('Demande client').item.json.message }}",
+          "options": {
+            "systemMessage": "Tu es l'assistant du service client de Chêne & Cie, un atelier de menuiserie (entreprise fictive de démonstration).\nTu traites une demande client et tu rédiges la réponse qui lui sera envoyée par email.\n\nMéthode :\n1. Si un numéro de commande est fourni, consulte-le avec l'outil consulter_commande. Consulte aussi politique_service_client dès que la demande touche un retour, un dommage, un retard ou un geste.\n2. Ne donne que des informations présentes dans les outils. N'invente ni date, ni numéro de suivi, ni montant.\n3. Geste commercial : si la politique le permet, calcule un montant dans la fourchette autorisée et appelle l'outil accorder_geste_commercial. Cet outil demande l'accord du gérant.\n   Format obligatoire de l'appel, paramètres regroupés dans toolParameters :\n   {\"toolParameters\": {\"commande\": \"CC-1234\", \"client\": \"Prénom Nom\", \"montant\": 25.5, \"motif\": \"Raison en une phrase\"}}\n   - S'il est accepté, annonce le geste et son montant.\n   - S'il est refusé, n'annonce aucun geste : indique que la demande est transmise et qu'un conseiller revient vers le client.\n   - N'annonce jamais un geste sans que l'outil ait été accepté.\n4. Si le client signale un dommage sans photo, demande-la.\n\nRéponse finale : uniquement le corps de l'email, en français, vouvoiement, ton chaleureux et concis (8 lignes au plus), sans objet, signé « Le service client de Chêne & Cie ».",
+            "maxIterations": 8,
+            "enableStreaming": false
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000009",
+        "name": "Qwen 3.6 (Ollama, local)",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          300,
+          360
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "temperature": 0,
+            "numCtx": 16384,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000010",
+        "name": "Outils Chêne & Cie (MCP)",
+        "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+        "typeVersion": 1.4,
+        "position": [
+          480,
+          360
+        ],
+        "parameters": {
+          "endpointUrl": "http://localhost:5678/mcp/chene-et-cie-outils",
+          "serverTransport": "httpStreamable",
+          "authentication": "bearerAuth",
+          "include": "all",
+          "options": {}
+        },
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "cat02McpBearer01",
+            "name": "Clé MCP (démo)"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000011",
+        "name": "Validation du gérant",
+        "type": "n8n-nodes-base.emailSendHitlTool",
+        "typeVersion": 2.1,
+        "position": [
+          700,
+          360
+        ],
+        "parameters": {
+          "fromEmail": "assistant@chene-et-cie.demo",
+          "toEmail": "gerant@chene-et-cie.demo",
+          "subject": "=Validation demandée · geste commercial · {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).commande }} · {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).montant }} €",
+          "message": "={{ (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? '' : '⚠ Demande mal transmise par l\\'IA : refusez-la, l\\'assistant la reformulera.\\n\\n' }}L'assistant propose un geste commercial.\n\nCommande : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).commande }}\nClient : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).client }}\nMontant : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).montant }} € TTC\nMotif : {{ ((typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})).commande ? (typeof $tool.parameters === 'string' ? JSON.parse($tool.parameters || '{}') : ($tool.parameters || {})) : $json).motif }}\n\nAcceptez-vous ce geste ?",
+          "approvalOptions": {
+            "values": {
+              "approvalType": "double",
+              "approveLabel": "Accepter",
+              "disapproveLabel": "Refuser"
+            }
+          },
+          "options": {
+            "limitWaitTime": {
+              "values": {
+                "limitType": "afterTimeInterval",
+                "resumeAmount": 24,
+                "resumeUnit": "hours"
+              }
+            },
+            "appendAttribution": false
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000012",
+        "name": "accorder_geste_commercial",
+        "type": "n8n-nodes-base.dataTableTool",
+        "typeVersion": 1.1,
+        "position": [
+          700,
+          580
+        ],
+        "parameters": {
+          "descriptionType": "manual",
+          "toolDescription": "Accorde un geste commercial (avoir) sur une commande. Nécessite l'accord du gérant. Paramètres : commande, client, montant TTC en euros, motif.",
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "__rl": true,
+            "mode": "name",
+            "value": "gestes_commerciaux_demo"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "matchingColumns": [],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false,
+            "value": {
+              "commande": "={{ $fromAI('commande', 'Numéro de commande concerné') }}",
+              "client": "={{ $fromAI('client', 'Nom du client') }}",
+              "montant": "={{ $fromAI('montant', 'Montant TTC du geste en euros', 'number') }}",
+              "motif": "={{ $fromAI('motif', 'Motif du geste en une phrase') }}",
+              "accorde_le": "={{ $now.toISO() }}"
+            },
+            "schema": [
+              {
+                "id": "commande",
+                "displayName": "commande",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "client",
+                "displayName": "client",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "montant",
+                "displayName": "montant",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "motif",
+                "displayName": "motif",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "accorde_le",
+                "displayName": "accorde_le",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "readOnly": false,
+                "removed": false
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8022-000000000013",
+        "name": "Répondre au client",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          820,
+          100
+        ],
+        "parameters": {
+          "fromEmail": "service-client@chene-et-cie.demo",
+          "toEmail": "={{ $('Demande client').item.json.email }}",
+          "subject": "=Re : votre demande{{ $('Demande client').item.json.commande ? ' · commande ' + $('Demande client').item.json.commande : '' }}",
+          "emailFormat": "text",
+          "text": "={{ $json.output }}",
+          "options": {
+            "appendAttribution": false
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Demande client": {
+        "main": [
+          [
+            {
+              "node": "Créer la table si besoin",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Créer la table si besoin": {
+        "main": [
+          [
+            {
+              "node": "Assistant service client",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 (Ollama, local)": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Assistant service client",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Outils Chêne & Cie (MCP)": {
+        "ai_tool": [
+          [
+            {
+              "node": "Assistant service client",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "accorder_geste_commercial": {
+        "ai_tool": [
+          [
+            {
+              "node": "Validation du gérant",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Validation du gérant": {
+        "ai_tool": [
+          [
+            {
+              "node": "Assistant service client",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Assistant service client": {
+        "main": [
+          [
+            {
+              "node": "Répondre au client",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Europe/Paris",
+      "errorWorkflow": "supModeleClient01"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": [
+      {
+        "id": "t1",
+        "name": "catalogue"
+      }
+    ],
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-cat02AgentHitl",
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ]
+  },
+  {
+    "id": "cat02OutilsMcp",
+    "name": "Catalogue 02 · Outils Chêne & Cie exposés en MCP (démo)",
+    "active": true,
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8021-000000000001",
+        "name": "Note 1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -60,
+          -320
+        ],
+        "parameters": {
+          "content": "## 🔌 Serveur d'outils MCP\nCe workflow publie des outils **en lecture seule** au format MCP (Model Context Protocol), le standard ouvert qui permet à n'importe quel agent IA (n8n, Claude, ChatGPT, Cursor…) d'utiliser vos données.\n\nLes données sont fictives et intégrées pour la démo. En production, chaque outil interroge votre vrai système : boutique, ERP, base clients.\n\nAccès protégé par une clé (Bearer).",
+          "width": 520,
+          "height": 260,
+          "color": 5
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8021-000000000002",
+        "name": "Serveur MCP",
+        "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "authentication": "bearerAuth",
+          "path": "chene-et-cie-outils",
+          "instructions": "Outils du service client de Chêne & Cie : consultation des commandes et de la politique de service. Lecture seule."
+        },
+        "webhookId": "5b9e1f40-2c3d-4e5f-8a6b-ca7a00000002",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "cat02McpBearer01",
+            "name": "Clé MCP (démo)"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8021-000000000003",
+        "name": "consulter_commande",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          -120,
+          240
+        ],
+        "parameters": {
+          "description": "Renvoie le détail d'une commande à partir de son numéro (format CC-1234) : client, articles, prix, statut, dates, transporteur et suivi.",
+          "language": "javaScript",
+          "specifyInputSchema": true,
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"numero\": {\n      \"type\": \"string\",\n      \"description\": \"Numéro de commande, ex. CC-1038\"\n    }\n  },\n  \"required\": [\n    \"numero\"\n  ]\n}",
+          "jsCode": "const commandes = {\n  \"CC-1038\": {\n    \"client\": \"Claire Fontaine\",\n    \"email\": \"claire.fontaine@client.demo\",\n    \"date\": \"2026-09-22\",\n    \"statut\": \"livrée\",\n    \"livree_le\": \"2026-09-29\",\n    \"articles\": [\n      {\n        \"designation\": \"Plateau de table en chêne massif 180 × 90 cm\",\n        \"quantite\": 1,\n        \"prix_ttc\": 690\n      }\n    ],\n    \"transporteur\": \"Messagerie Ouest\",\n    \"total_ttc\": 690\n  },\n  \"CC-1042\": {\n    \"client\": \"Marc Delmas\",\n    \"email\": \"marc.delmas@client.demo\",\n    \"date\": \"2026-09-30\",\n    \"statut\": \"en fabrication\",\n    \"expedition_prevue\": \"2026-10-09\",\n    \"articles\": [\n      {\n        \"designation\": \"Banc en chêne huilé 160 cm\",\n        \"quantite\": 1,\n        \"prix_ttc\": 420\n      },\n      {\n        \"designation\": \"Huile d'entretien 500 ml\",\n        \"quantite\": 1,\n        \"prix_ttc\": 24\n      }\n    ],\n    \"total_ttc\": 444\n  },\n  \"CC-1045\": {\n    \"client\": \"Inès Royer\",\n    \"email\": \"ines.royer@client.demo\",\n    \"date\": \"2026-10-01\",\n    \"statut\": \"expédiée\",\n    \"expediee_le\": \"2026-10-03\",\n    \"articles\": [\n      {\n        \"designation\": \"Étagère murale en chêne 120 cm\",\n        \"quantite\": 2,\n        \"prix_ttc\": 135\n      }\n    ],\n    \"transporteur\": \"Colis Express\",\n    \"suivi\": \"CE-7781-2290-FR\",\n    \"total_ttc\": 270\n  }\n};\nconst numero = String(query.numero ?? query).toUpperCase().replace(/\\s/g, '').trim();\nconst c = commandes[numero];\nreturn c ? JSON.stringify({ numero, ...c }) : JSON.stringify({ erreur: 'Commande introuvable', numero });"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8021-000000000004",
+        "name": "politique_service_client",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          100,
+          240
+        ],
+        "parameters": {
+          "description": "Renvoie la politique du service client : rétractation, garantie, dommages de transport, gestes commerciaux autorisés, délais.",
+          "language": "javaScript",
+          "jsCode": "return \"Politique service client de Chêne & Cie (entreprise fictive de démonstration) :\\n- Rétractation : 14 jours après livraison pour les articles standards, retour aux frais du client.\\n- Garantie : 2 ans sur la fabrication.\\n- Dommage pendant le transport : signalé sous 7 jours avec une photo ; au choix du client, remplacement de la pièce ou geste commercial.\\n- Geste commercial : de 5 % à 15 % du prix de l'article concerné ; il doit toujours être validé par le gérant avant d'être annoncé.\\n- Retard de fabrication de plus de 7 jours : information du client et geste possible de 5 %.\\n- Délais habituels : fabrication 5 à 10 jours ouvrés, livraison 2 à 4 jours.\";"
+        }
+      }
+    ],
+    "connections": {
+      "consulter_commande": {
+        "ai_tool": [
+          [
+            {
+              "node": "Serveur MCP",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "politique_service_client": {
+        "ai_tool": [
+          [
+            {
+              "node": "Serveur MCP",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Europe/Paris",
+      "errorWorkflow": "supModeleClient01"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": [
+      {
+        "id": "t1",
+        "name": "catalogue"
+      }
+    ],
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-cat02OutilsMcp",
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ]
+  },
+  {
+    "id": "cat03VideoCampagne",
+    "name": "Catalogue 03 · Une vidéo → une campagne de contenus (démo)",
+    "active": true,
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8003-000000000001",
+        "name": "Note 1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -40,
+          -500
+        ],
+        "parameters": {
+          "content": "## 🎬 Une vidéo → une campagne de contenus\n**Problème :** une vidéo tournée, puis plus rien. Sous-titres, article, posts, newsletter : tout est à refaire à la main, donc rarement fait.\n\n**Solution :**\n1. On dépose une vidéo (ou un audio).\n2. **Whisper**, en local, la transcrit avec des horodatages.\n3. Les **sous-titres** SRT et VTT sont générés.\n4. Une **IA locale** analyse : titre, résumé, chapitres YouTube, citations, mots-clés.\n5. Elle rédige la **campagne** : article de blog SEO, 3 posts LinkedIn, post court, newsletter.\n6. Des **contrôles** vérifient les chapitres, les citations (mot pour mot), les longueurs.\n7. Le pack complet arrive par email, en pièces jointes.\n\n*Démo sur données fictives. La version pro ajoute un dossier surveillé ou un lien YouTube comme déclencheur, les sous-titres incrustés, la publication programmée et le style de votre marque.*",
+          "width": 640,
+          "height": 440,
+          "color": 5
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000002",
+        "name": "Déposer une vidéo",
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.5,
+        "position": [
+          0,
+          100
+        ],
+        "parameters": {
+          "formTitle": "Transformer une vidéo en campagne",
+          "formDescription": "Démo : déposez une vidéo ou un fichier audio. Vous recevrez sous-titres, article, posts et newsletter par email.",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Vidéo ou audio",
+                "fieldName": "video",
+                "fieldType": "file",
+                "requiredField": true,
+                "multipleFiles": false,
+                "acceptFileTypes": ".mp4,.mov,.m4a,.mp3,.wav,.webm"
+              },
+              {
+                "fieldLabel": "Contexte (facultatif)",
+                "fieldName": "contexte",
+                "fieldType": "textarea",
+                "placeholder": "Ex. : tutoriel de l'atelier, public de particuliers"
+              }
+            ]
+          },
+          "responseMode": "onReceived",
+          "options": {
+            "buttonLabel": "Lancer",
+            "respondWithOptions": {
+              "values": {
+                "respondWith": "text",
+                "formSubmittedText": "Vidéo reçue. Le pack de contenus arrive par email d'ici quelques minutes (Mailpit : http://localhost:8025)."
+              }
+            }
+          }
+        },
+        "webhookId": "3c7d2e90-4a1b-4c2d-9e3f-ca7a00000004"
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000003",
+        "name": "Préparer le fichier",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Récupère la vidéo déposée et la place dans « data ».\nconst src = $('Déposer une vidéo').first();\nconst fichier = Object.values(src.binary ?? {})[0];\nif (!fichier) throw new Error('Aucun fichier reçu : déposez une vidéo ou un fichier audio.');\nreturn [{ json: { nom_fichier: fichier.fileName, contexte: src.json.contexte ?? '', public: src.json.public ?? '' }, binary: { data: fichier } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000004",
+        "name": "Transcrire (Whisper local)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          100
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:9000/v1/audio/transcriptions",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "file",
+                "inputDataFieldName": "data"
+              },
+              {
+                "name": "model",
+                "value": "whisper-1"
+              },
+              {
+                "name": "language",
+                "value": "fr"
+              },
+              {
+                "name": "response_format",
+                "value": "verbose_json"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 1800000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 5000
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000005",
+        "name": "Sous-titres et repères",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Sous-titres SRT et VTT à partir des segments horodatés, et transcription repérée pour l'IA.\nconst t = $input.first().json;\nconst segs = t.segments ?? [];\nif (!segs.length) throw new Error('Transcription vide : la vidéo contient-elle de la parole ?');\nconst hms = (s, sep) => { const ms = Math.round(s * 1000); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, sec = Math.floor(ms / 1000) % 60;\n  return [h, m, sec].map(n => String(n).padStart(2, '0')).join(':') + sep + String(ms % 1000).padStart(3, '0'); };\nconst mmss = s => { const m = Math.floor(s / 60), sec = Math.floor(s % 60); return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0'); };\nconst srt = segs.map((s, i) => `${i + 1}\\n${hms(s.start, ',')} --> ${hms(s.end, ',')}\\n${s.text.trim()}\\n`).join('\\n');\nconst vtt = 'WEBVTT\\n\\n' + segs.map(s => `${hms(s.start, '.')} --> ${hms(s.end, '.')}\\n${s.text.trim()}\\n`).join('\\n');\nconst reperee = segs.map(s => `[${mmss(s.start)}] ${s.text.trim()}`).join('\\n');\nconst duree = segs[segs.length - 1].end;\nconst mots = t.text.split(/\\s+/).filter(Boolean).length;\nreturn [{ json: { texte: t.text, reperee, srt, vtt, duree_s: Math.round(duree), duree: mmss(duree), mots, segments: segs.length, temps_transcription_s: t.temps_de_calcul_s ?? null } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000006",
+        "name": "Analyse de la vidéo",
+        "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+        "typeVersion": 1.2,
+        "position": [
+          880,
+          100
+        ],
+        "parameters": {
+          "text": "=Contexte donné : {{ $('Préparer le fichier').first().json.contexte || 'aucun' }}\nDurée : {{ $json.duree }}\n\nTranscription horodatée :\n{{ $json.reperee }}",
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"titre_video\": {\n      \"type\": \"string\",\n      \"description\": \"Titre YouTube accrocheur, 70 caractères au plus\"\n    },\n    \"resume\": {\n      \"type\": \"string\",\n      \"description\": \"Résumé en 2 phrases\"\n    },\n    \"chapitres\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"debut\": {\n            \"type\": \"string\",\n            \"description\": \"MM:SS\"\n          },\n          \"titre\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    },\n    \"citations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"texte\": {\n            \"type\": \"string\"\n          },\n          \"horodatage\": {\n            \"type\": \"string\",\n            \"description\": \"MM:SS\"\n          }\n        }\n      }\n    },\n    \"mots_cles\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"required\": [\n    \"titre_video\",\n    \"resume\",\n    \"chapitres\",\n    \"citations\",\n    \"mots_cles\"\n  ]\n}",
+          "options": {
+            "systemPromptTemplate": "Tu es éditeur de contenus. Tu analyses la transcription horodatée d'une vidéo pour préparer sa diffusion.\nRègles :\n- Appuie-toi uniquement sur ce qui est dit dans la vidéo. N'ajoute aucun fait, chiffre ou promesse.\n- Horodatages au format MM:SS, repris des repères [MM:SS] de la transcription.\n- Chapitres : de 3 à 7, le premier commence à 00:00, dans l'ordre chronologique, titres courts (6 mots au plus).\n- Citations : 3 phrases fortes reprises mot pour mot de la transcription, avec l'horodatage du segment où elles commencent.\n- Mots-clés : 5 à 8 expressions qu'un internaute taperait dans un moteur de recherche."
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000007",
+        "name": "Qwen 3.6 · analyse",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          880,
+          320
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "think": false,
+            "temperature": 0.2,
+            "numCtx": 16384,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000008",
+        "name": "Rédaction de la campagne",
+        "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+        "typeVersion": 1.2,
+        "position": [
+          1120,
+          100
+        ],
+        "parameters": {
+          "text": "=Contexte donné : {{ $('Préparer le fichier').first().json.contexte || 'aucun' }}\n\nAnalyse :\n{{ JSON.stringify($json.output, null, 2) }}\n\nTranscription complète :\n{{ $('Sous-titres et repères').first().json.texte }}",
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"article_titre\": {\n      \"type\": \"string\"\n    },\n    \"meta_description\": {\n      \"type\": \"string\"\n    },\n    \"article_markdown\": {\n      \"type\": \"string\",\n      \"description\": \"Article complet en Markdown\"\n    },\n    \"posts_linkedin\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"description\": \"3 posts\"\n    },\n    \"post_court\": {\n      \"type\": \"string\"\n    },\n    \"newsletter_objet\": {\n      \"type\": \"string\"\n    },\n    \"newsletter_texte\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"article_titre\",\n    \"meta_description\",\n    \"article_markdown\",\n    \"posts_linkedin\",\n    \"post_court\",\n    \"newsletter_objet\",\n    \"newsletter_texte\"\n  ]\n}",
+          "options": {
+            "systemPromptTemplate": "Tu es rédacteur web et réseaux sociaux pour une petite entreprise française. À partir de la transcription et de son analyse, tu rédiges une campagne de contenus.\nRègles :\n- Uniquement le contenu de la vidéo : pas de faits, chiffres, prix ou promesses inventés.\n- Français, ton simple, chaleureux et expert, sans jargon marketing ni superlatifs creux.\n- Article de blog : 400 à 600 mots en Markdown, un titre H1, des intertitres H2, une conclusion qui invite à regarder la vidéo. Intègre naturellement les mots-clés.\n- Meta description : 150 caractères au plus.\n- 3 posts LinkedIn différents (angle conseil, angle coulisses de l'atelier, angle question au lecteur), 600 à 900 caractères chacun, sans hashtags dans le corps, 3 hashtags à la fin.\n- Post court pour Instagram ou Facebook : 300 caractères au plus, 1 ou 2 emojis maximum.\n- Newsletter : un objet de 50 caractères au plus et un texte de 80 à 120 mots."
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000009",
+        "name": "Qwen 3.6 · rédaction",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          1120,
+          320
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "think": false,
+            "temperature": 0.6,
+            "numCtx": 16384,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000010",
+        "name": "Contrôles et pack",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1340,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Contrôles automatiques puis assemblage du pack (fichiers joints + récapitulatif).\nconst st = $('Sous-titres et repères').first().json;\nconst a = $('Analyse de la vidéo').first().json.output;\nconst r = $('Rédaction de la campagne').first().json.output;\nconst src = $('Préparer le fichier').first().json;\nconst sec = s => { const m = /^(\\d{1,2}):(\\d{2})$/.exec(String(s).trim()); return m ? +m[1] * 60 + +m[2] : NaN; };\nconst norm = s => String(s).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst transcription = norm(st.texte);\nconst ch = a.chapitres ?? [];\nconst nbMots = s => String(s).split(/\\s+/).filter(Boolean).length;\nconst controles = [\n  { label: 'Chapitres : premier à 00:00', ok: ch.length > 0 && sec(ch[0].debut) === 0 },\n  { label: 'Chapitres : ordre chronologique et dans la durée', ok: ch.every((c, i) => !isNaN(sec(c.debut)) && sec(c.debut) <= st.duree_s && (i === 0 || sec(c.debut) > sec(ch[i - 1].debut))) },\n  { label: 'Chapitres : 3 au minimum (exigence YouTube)', ok: ch.length >= 3 },\n  { label: 'Citations reprises mot pour mot', ok: (a.citations ?? []).length > 0 && a.citations.every(c => transcription.includes(norm(c.texte))) },\n  { label: 'Article : 400 à 600 mots', ok: nbMots(r.article_markdown) >= 380 && nbMots(r.article_markdown) <= 650, detail: nbMots(r.article_markdown) + ' mots' },\n  { label: 'Meta description : 150 caractères au plus', ok: r.meta_description.length <= 155, detail: r.meta_description.length + ' car.' },\n  { label: '3 posts LinkedIn', ok: (r.posts_linkedin ?? []).length === 3 },\n  { label: 'Post court : 300 caractères au plus', ok: r.post_court.length <= 300, detail: r.post_court.length + ' car.' },\n];\nconst aRevoir = controles.filter(c => !c.ok).map(c => c.label);\nconst chapitresYT = ch.map(c => c.debut + ' ' + c.titre).join('\\n');\nconst campagne = [\n  '# Campagne de contenus · ' + a.titre_video, '',\n  '*Source : ' + src.nom_fichier + ' · ' + st.duree + ' · ' + st.mots + ' mots transcrits*', '',\n  '## Vidéo', '', '**Titre :** ' + a.titre_video, '', '**Résumé :** ' + a.resume, '', '**Chapitres (description YouTube) :**', '', '```', chapitresYT, '```', '',\n  '**Mots-clés :** ' + a.mots_cles.join(', '), '',\n  '## Citations', '', ...a.citations.map(c => '- « ' + c.texte + ' » (' + c.horodatage + ')'), '',\n  '## LinkedIn', '', ...r.posts_linkedin.flatMap((p, i) => ['### Post ' + (i + 1), '', p, '']),\n  '## Instagram / Facebook', '', r.post_court, '',\n  '## Newsletter', '', '**Objet :** ' + r.newsletter_objet, '', r.newsletter_texte, '',\n  '## Article de blog', '', '**Meta description :** ' + r.meta_description, '', r.article_markdown, '',\n].join('\\n');\nconst fichier = async (txt, nom, type) => await this.helpers.prepareBinaryData(Buffer.from(txt, 'utf8'), nom, type);\nconst base = (src.nom_fichier || 'video').replace(/\\.[^.]+$/, '');\nreturn [{ json: { titre: a.titre_video, resume: a.resume, duree: st.duree, mots: st.mots, temps_transcription_s: st.temps_transcription_s,\n    chapitres: ch, citations: a.citations, mots_cles: a.mots_cles, posts_linkedin: r.posts_linkedin, post_court: r.post_court,\n    newsletter_objet: r.newsletter_objet, article_titre: r.article_titre, controles, a_revoir: aRevoir.join(' · ') },\n  binary: {\n    sous_titres_srt: await fichier(st.srt, base + '.srt', 'application/x-subrip'),\n    sous_titres_vtt: await fichier(st.vtt, base + '.vtt', 'text/vtt'),\n    article: await fichier(r.article_markdown, 'article-blog.md', 'text/markdown'),\n    campagne: await fichier(campagne, 'campagne-complete.md', 'text/markdown'),\n  } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8003-000000000011",
+        "name": "Envoyer le pack",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          1560,
+          100
+        ],
+        "parameters": {
+          "fromEmail": "contenus@chene-et-cie.demo",
+          "toEmail": "communication@chene-et-cie.demo",
+          "subject": "={{ $json.a_revoir ? '⚠' : '✓' }} Pack de contenus · {{ $json.titre }}",
+          "emailFormat": "html",
+          "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Vidéo traitée automatiquement · {{ $json.duree }} · {{ $json.mots }} mots transcrits</p>\n<h2 style=\"margin:0 0 8px\">{{ $json.titre.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</h2>\n<p style=\"margin:0 0 14px;color:#3B4441\">{{ $json.resume.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</p>\n<p style=\"padding:10px 14px;border-radius:6px;background:{{ $json.a_revoir ? '#FBEDE6' : '#E7F0EC' }}\"><b>{{ $json.a_revoir ? '⚠ À revoir : ' + $json.a_revoir : '✓ Tous les contrôles sont passés' }}</b></p>\n<h3 style=\"margin:18px 0 6px\">Dans les pièces jointes</h3>\n<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6\"><li>Sous-titres <b>.srt</b> et <b>.vtt</b> (YouTube, LinkedIn, site)</li><li>Article de blog prêt à publier : « {{ $json.article_titre.replaceAll('&','&amp;').replaceAll('<','&lt;') }} »</li><li>La campagne complète : 3 posts LinkedIn, post court, newsletter, chapitres, citations, mots-clés</li></ul>\n<h3 style=\"margin:18px 0 6px\">Chapitres</h3>\n<table style=\"border-collapse:collapse;font-size:14px\">{{ $json.chapitres.map(c => '<tr><td style=\"padding:3px 14px 3px 0;color:#5E6662;font-family:monospace\">' + c.debut + '</td><td>' + c.titre.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</td></tr>').join('') }}</table>\n<h3 style=\"margin:18px 0 6px\">Aperçu · post LinkedIn n°1</h3>\n<div style=\"white-space:pre-wrap;font-size:14px;line-height:1.5;padding:12px 14px;border-left:3px solid #315C5A;background:#F5F2EA\">{{ $json.posts_linkedin[0].replaceAll('&','&amp;').replaceAll('<','&lt;') }}</div>\n<h3 style=\"margin:18px 0 6px\">Contrôles</h3>\n<table style=\"border-collapse:collapse;font-size:14px\">{{ $json.controles.map(c => '<tr><td style=\"padding:3px 8px 3px 0\">' + (c.ok ? '✅' : '⚠️') + '</td><td>' + c.label + '</td><td style=\"padding-left:10px;color:#5E6662\">' + (c.detail ?? '') + '</td></tr>').join('') }}</table>\n<p style=\"margin-top:18px;font-size:12px;color:#5E6662\">Transcription et rédaction par IA locale (Whisper et Ollama) : la vidéo n'a quitté aucun serveur. Contenus à relire avant publication. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+          "options": {
+            "appendAttribution": false,
+            "attachments": "sous_titres_srt,sous_titres_vtt,article,campagne"
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Déposer une vidéo": {
+        "main": [
+          [
+            {
+              "node": "Préparer le fichier",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Préparer le fichier": {
+        "main": [
+          [
+            {
+              "node": "Transcrire (Whisper local)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcrire (Whisper local)": {
+        "main": [
+          [
+            {
+              "node": "Sous-titres et repères",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sous-titres et repères": {
+        "main": [
+          [
+            {
+              "node": "Analyse de la vidéo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 · analyse": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Analyse de la vidéo",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Analyse de la vidéo": {
+        "main": [
+          [
+            {
+              "node": "Rédaction de la campagne",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 · rédaction": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Rédaction de la campagne",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rédaction de la campagne": {
+        "main": [
+          [
+            {
+              "node": "Contrôles et pack",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Contrôles et pack": {
+        "main": [
+          [
+            {
+              "node": "Envoyer le pack",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Europe/Paris",
+      "errorWorkflow": "supModeleClient01"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": [
+      {
+        "id": "t1",
+        "name": "catalogue"
+      }
+    ],
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-cat03VideoCampagne",
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ]
+  },
+  {
+    "id": "cat04RagAvance",
+    "name": "Catalogue 04 · Assistant documentaire avancé · RAG hybride (démo)",
+    "active": true,
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8004-000000000001",
+        "name": "Note 1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -60,
+          -620
+        ],
+        "parameters": {
+          "content": "## 📚 Assistant documentaire avancé (RAG hybride)\n**Problème :** un assistant qui « cherche dans vos documents » rate les références exactes, mélange les versions et invente quand il ne trouve pas.\n\n**Indexation (en haut) :**\n1. On dépose des PDF, Markdown ou textes.\n2. Découpage **par section**, avec titre et page.\n3. Deux vecteurs par passage : **sens** (nomic, local) et **mots-clés** (BM25).\n4. **Mise à jour automatique** : un document inchangé est ignoré, un document modifié remplace l'ancienne version.\n\n**Questions (en bas) :**\n1. **Recherche hybride** dans Qdrant, fusion des deux classements (RRF).\n2. **Reclassement** des passages par l'IA locale ; seuls les pertinents sont gardés.\n3. Réponse **sourcée** ; les citations sont **vérifiées** ; « je ne trouve pas » plutôt qu'inventer.\n\n*Démo sur données fictives. La version pro ajoute Google Drive, SharePoint ou un dossier surveillé, les droits d'accès par service, la reformulation des questions et le suivi des questions sans réponse.*",
+          "width": 680,
+          "height": 560,
+          "color": 5
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000002",
+        "name": "Ajouter des documents",
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.5,
+        "position": [
+          0,
+          100
+        ],
+        "parameters": {
+          "formTitle": "Ajouter ou mettre à jour des documents",
+          "formDescription": "Démo : PDF, Markdown ou texte. Un document déjà indexé et inchangé est ignoré ; s'il a changé, il remplace l'ancienne version.",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Documents",
+                "fieldName": "documents",
+                "fieldType": "file",
+                "requiredField": true,
+                "multipleFiles": true,
+                "acceptFileTypes": ".pdf,.md,.txt"
+              }
+            ]
+          },
+          "responseMode": "onReceived",
+          "options": {
+            "buttonLabel": "Indexer",
+            "respondWithOptions": {
+              "values": {
+                "respondWith": "text",
+                "formSubmittedText": "Documents reçus. Le rapport d'indexation arrive par email (Mailpit : http://localhost:8025)."
+              }
+            }
+          }
+        },
+        "webhookId": "8a4f1b20-6c3d-4e7f-9a1b-ca7a00000005"
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000003",
+        "name": "Créer la collection si besoin",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          220,
+          100
+        ],
+        "parameters": {
+          "method": "PUT",
+          "url": "http://host.docker.internal:6333/collections/demo_rag_avance",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "{\"vectors\":{\"dense\":{\"size\":768,\"distance\":\"Cosine\"}},\"sparse_vectors\":{\"mots\":{\"modifier\":\"idf\"}}}",
+          "options": {
+            "timeout": 120000,
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "retryOnFail": false,
+        "maxTries": 2,
+        "waitBetweenTries": 2000,
+        "executeOnce": true
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000004",
+        "name": "Un élément par fichier",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Un élément par fichier déposé.\nconst src = $('Ajouter des documents').first();\nconst fichiers = Object.values(src.binary ?? {});\nif (!fichiers.length) throw new Error('Aucun fichier reçu.');\nreturn fichiers.map(f => ({ json: { source: f.fileName, extension: (f.fileExtension || f.fileName.split('.').pop() || '').toLowerCase() }, binary: { data: f } }));"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000006",
+        "name": "PDF ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          660,
+          100
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": false,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "00000000-0000-4000-8004-000000000005",
+                "leftValue": "={{ $json.extension }}",
+                "rightValue": "pdf",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000007",
+        "name": "Extraire le texte du PDF",
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1,
+        "position": [
+          880,
+          0
+        ],
+        "parameters": {
+          "operation": "pdf",
+          "binaryPropertyName": "data",
+          "options": {
+            "joinPages": false
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000008",
+        "name": "Texte du PDF",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// PDF : texte extrait page par page.\nreturn $input.all().map((it, i) => {\n  const t = it.json.text;\n  return { json: { source: $('Un élément par fichier').all().filter(x => x.json.extension === 'pdf')[i].json.source, format: 'pdf', pages: Array.isArray(t) ? t : [String(t ?? '')] } };\n});"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000009",
+        "name": "Texte brut",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          200
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Fichiers texte et Markdown : lecture directe.\nconst res = [];\nfor (let i = 0; i < $input.all().length; i++) {\n  const it = $input.all()[i];\n  const buf = await this.helpers.getBinaryDataBuffer(i, 'data');\n  res.push({ json: { source: it.json.source, format: 'markdown', pages: [buf.toString('utf8')] } });\n}\nreturn res;"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000010",
+        "name": "Rassembler",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          1320,
+          100
+        ],
+        "parameters": {}
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000011",
+        "name": "Découper en passages",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1540,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const MOTS_VIDES = new Set('le la les un une des de du et ou en au aux a ce ces cet cette est sont pour par sur dans avec sans que qui quoi quel quelle quels quelles ne pas plus se sa son ses leur leurs il elle ils elles on nous vous je tu y d l qu s c n m t j mon ma mes votre vos notre nos etre avoir fait faire peut doit comme si mais donc car tout tous toute toutes chaque entre apres avant'.split(' '));\nconst racine = w => /^\\d/.test(w) || w.length < 5 ? w : w.replace(/(s|x)$/, '').replace(/e$/, '');\nfunction termes(texte) {\n  const t = String(texte).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  const res = [];\n  for (const [w] of t.matchAll(/[a-z0-9]+(?:[-.][a-z0-9]+)*/g)) {\n    if (/[-.]/.test(w)) { res.push(w); for (const p of w.split(/[-.]/)) if (p.length > 1 && !MOTS_VIDES.has(p)) res.push(racine(p)); continue; }\n    if (w.length > 1 && !MOTS_VIDES.has(w)) res.push(racine(w));\n  }\n  return res;\n}\nfunction fnv(s, graine = 0x811c9dc5) { let h = graine >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; }\nfunction vecteurMots(texte, requete = false) {\n  const tf = new Map();\n  for (const w of termes(texte)) { const k = fnv(w); tf.set(k, (tf.get(k) || 0) + 1); }\n  const L = [...tf.values()].reduce((a, b) => a + b, 0), k1 = 1.2, b = 0.75, moy = 90;\n  const indices = [...tf.keys()];\n  return { indices, values: indices.map(i => requete ? 1 : tf.get(i) * (k1 + 1) / (tf.get(i) + k1 * (1 - b + b * L / moy))) };\n}\nconst empreinte = s => [0x811c9dc5, 0x12345678, 0x9e3779b9, 0x7f4a7c15].map(g => fnv(s, g).toString(16).padStart(8, '0')).join('');\nconst uuid = s => { const h = empreinte(s); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };\n// Découpage en passages : par section (titres Markdown ou titres numérotés des PDF), 1 000 caractères au plus, avec chevauchement.\nconst MAX = 1000;\nfunction couper(bloc) {\n  if (bloc.texte.length <= MAX) return [bloc];\n  const paras = bloc.texte.split(/\\n{1,}/).filter(p => p.trim());\n  const res = []; let cur = [];\n  for (const p of paras) {\n    if (cur.join('\\n').length + p.length > MAX && cur.length) { res.push({ ...bloc, texte: cur.join('\\n') }); cur = [cur[cur.length - 1]]; }\n    cur.push(p);\n  }\n  if (cur.length) res.push({ ...bloc, texte: cur.join('\\n') });\n  return res;\n}\nconst docs = [];\nfor (const it of $input.all()) {\n  const { source, format, pages } = it.json;\n  const blocs = []; let titre = source.replace(/\\.[^.]+$/, '').replace(/_/g, ' '), section = '', cur = [], page = 1;\n  const vider = () => { const t = cur.join('\\n').trim(); if (t.replace(/[*_#|\\-\\s]/g, '').length > 20) blocs.push({ section: section ? titre + ' › ' + section : titre, page: format === 'pdf' ? page : null, texte: t }); cur = []; };\n  pages.forEach((txt, p) => {\n    if (format === 'pdf') { vider(); page = p + 1; }\n    const lignes = String(txt).split('\\n');\n    lignes.forEach((l, k) => {\n      const md = format !== 'pdf' && /^(#{1,3})\\s+(.*)/.exec(l);\n      const num = format === 'pdf' && /^\\d+\\.\\s+\\S.{0,70}$/.test(l.trim()) && !/[.:;,]$/.test(l.trim());\n      if (format === 'pdf' && p === 0 && k === 0 && l.trim()) { titre = l.trim(); return; }\n      if (md) { vider(); if (md[1] === '#') titre = md[2].trim(); else section = md[2].trim(); return; }\n      if (num) { vider(); section = l.trim(); return; }\n      cur.push(l);\n    });\n  });\n  vider();\n  const passages = blocs.flatMap(couper).map((b, i) => ({ ...b, index: i }));\n  const contenu = pages.join('\\n');\n  docs.push({ json: { source, titre, empreinte: empreinte(contenu), nb_passages: passages.length, passages } });\n}\nreturn docs;"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000012",
+        "name": "Versions déjà indexées",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1760,
+          100
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points/scroll",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "{\"filter\":{\"must\":[{\"key\":\"index\",\"match\":{\"value\":0}}]},\"limit\":10000,\"with_payload\":[\"source\",\"empreinte\"],\"with_vector\":false}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000,
+        "executeOnce": true
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000013",
+        "name": "Comparer aux versions indexées",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1980,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Compare chaque document à la version déjà indexée (empreinte du contenu).\nconst indexes = new Map(($('Versions déjà indexées').first().json.result?.points ?? []).map(p => [p.payload.source, p.payload.empreinte]));\nreturn $('Découper en passages').all().map(d => {\n  const ancien = indexes.get(d.json.source);\n  const statut = !ancien ? 'nouveau' : ancien === d.json.empreinte ? 'inchangé' : 'mis à jour';\n  return { json: { ...d.json, statut, a_indexer: statut !== 'inchangé' } };\n});"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000015",
+        "name": "À indexer ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          2200,
+          100
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "00000000-0000-4000-8004-000000000014",
+                "leftValue": "={{ $json.a_indexer }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000016",
+        "name": "Retirer l'ancienne version",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2420,
+          0
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points/delete?wait=true",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filter: { must: [{ key: 'source', match: { value: $json.source } }] } }) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000017",
+        "name": "Vecteurs sémantiques (nomic)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2640,
+          0
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:11434/api/embed",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ model: 'nomic-embed-text', truncate: true, input: $('À indexer ?').item.json.passages.map(p => 'search_document: ' + p.section + '\\n' + p.texte) }) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000018",
+        "name": "Construire les points",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2860,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "const MOTS_VIDES = new Set('le la les un une des de du et ou en au aux a ce ces cet cette est sont pour par sur dans avec sans que qui quoi quel quelle quels quelles ne pas plus se sa son ses leur leurs il elle ils elles on nous vous je tu y d l qu s c n m t j mon ma mes votre vos notre nos etre avoir fait faire peut doit comme si mais donc car tout tous toute toutes chaque entre apres avant'.split(' '));\nconst racine = w => /^\\d/.test(w) || w.length < 5 ? w : w.replace(/(s|x)$/, '').replace(/e$/, '');\nfunction termes(texte) {\n  const t = String(texte).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  const res = [];\n  for (const [w] of t.matchAll(/[a-z0-9]+(?:[-.][a-z0-9]+)*/g)) {\n    if (/[-.]/.test(w)) { res.push(w); for (const p of w.split(/[-.]/)) if (p.length > 1 && !MOTS_VIDES.has(p)) res.push(racine(p)); continue; }\n    if (w.length > 1 && !MOTS_VIDES.has(w)) res.push(racine(w));\n  }\n  return res;\n}\nfunction fnv(s, graine = 0x811c9dc5) { let h = graine >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; }\nfunction vecteurMots(texte, requete = false) {\n  const tf = new Map();\n  for (const w of termes(texte)) { const k = fnv(w); tf.set(k, (tf.get(k) || 0) + 1); }\n  const L = [...tf.values()].reduce((a, b) => a + b, 0), k1 = 1.2, b = 0.75, moy = 90;\n  const indices = [...tf.keys()];\n  return { indices, values: indices.map(i => requete ? 1 : tf.get(i) * (k1 + 1) / (tf.get(i) + k1 * (1 - b + b * L / moy))) };\n}\nconst empreinte = s => [0x811c9dc5, 0x12345678, 0x9e3779b9, 0x7f4a7c15].map(g => fnv(s, g).toString(16).padStart(8, '0')).join('');\nconst uuid = s => { const h = empreinte(s); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };\n// Points Qdrant : vecteur sémantique (nomic) + vecteur mots-clés, et métadonnées pour citer la source.\nconst doc = $('À indexer ?').item.json;\nconst vecteurs = $json.embeddings;\nif (!vecteurs || vecteurs.length !== doc.passages.length) throw new Error('Nombre de vecteurs inattendu pour ' + doc.source);\nconst maintenant = new Date().toISOString();\nreturn { json: { points: doc.passages.map((p, i) => ({\n  id: uuid(doc.source + '#' + p.index),\n  vector: { dense: vecteurs[i], mots: vecteurMots(p.section + '\\n' + p.texte) },\n  payload: { source: doc.source, titre: doc.titre, section: p.section, page: p.page, texte: p.texte, index: p.index, empreinte: doc.empreinte, indexe_le: maintenant },\n})) } };"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000019",
+        "name": "Enregistrer dans Qdrant",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3080,
+          0
+        ],
+        "parameters": {
+          "method": "PUT",
+          "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points?wait=true",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ points: $json.points }) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000020",
+        "name": "Fin de l'indexation",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          3300,
+          100
+        ],
+        "parameters": {}
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000021",
+        "name": "Rapport d'indexation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3520,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Rapport d'indexation.\nconst docs = $('Comparer aux versions indexées').all().map(d => d.json);\nconst n = s => docs.filter(d => d.statut === s).length;\nreturn [{ json: { docs: docs.map(d => ({ source: d.source, statut: d.statut, passages: d.nb_passages })),\n  resume: `${n('nouveau')} nouveau(x), ${n('mis à jour')} mis à jour, ${n('inchangé')} inchangé(s)`,\n  passages_indexes: docs.filter(d => d.a_indexer).reduce((s, d) => s + d.nb_passages, 0) } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000022",
+        "name": "Envoyer le rapport",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          3740,
+          100
+        ],
+        "parameters": {
+          "fromEmail": "documents@chene-et-cie.demo",
+          "toEmail": "admin@chene-et-cie.demo",
+          "subject": "=Base documentaire · {{ $json.resume }}",
+          "emailFormat": "html",
+          "html": "=<div style=\"font-family:Arial,sans-serif;max-width:640px;color:#1D2422\">\n<h2 style=\"margin:0 0 6px\">Base documentaire à jour</h2>\n<p style=\"margin:0 0 14px;color:#5E6662\">{{ $json.resume }} · {{ $json.passages_indexes }} passages indexés</p>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\"><tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Document</td><td style=\"border-bottom:1px solid #D8D2C5\">Statut</td><td style=\"text-align:right;border-bottom:1px solid #D8D2C5\">Passages</td></tr>\n{{ $json.docs.map(d => '<tr><td style=\"padding:5px 0\">' + d.source + '</td><td>' + (d.statut === 'inchangé' ? '<span style=\"color:#5E6662\">inchangé, ignoré</span>' : '<b style=\"color:#315C5A\">' + d.statut + '</b>') + '</td><td style=\"text-align:right\">' + d.passages + '</td></tr>').join('') }}</table>\n<p style=\"margin-top:16px;font-size:12px;color:#5E6662\">Seuls les documents nouveaux ou modifiés sont réindexés ; l'ancienne version d'un document modifié est retirée. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+          "options": {
+            "appendAttribution": false
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000023",
+        "name": "Poser une question",
+        "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          0,
+          700
+        ],
+        "parameters": {
+          "public": true,
+          "mode": "hostedChat",
+          "initialMessages": "Bonjour ! Je réponds à partir des documents de Chêne & Cie (CGV, garanties, tarifs, notices), en citant mes sources.",
+          "options": {
+            "responseMode": "lastNode",
+            "title": "Assistant documentaire · Chêne et Cie",
+            "subtitle": "Démo sur données fictives",
+            "inputPlaceholder": "Votre question…"
+          }
+        },
+        "webhookId": "8a4f1b20-6c3d-4e7f-9a1b-ca7a00000006"
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000024",
+        "name": "Préparer la recherche",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          700
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const MOTS_VIDES = new Set('le la les un une des de du et ou en au aux a ce ces cet cette est sont pour par sur dans avec sans que qui quoi quel quelle quels quelles ne pas plus se sa son ses leur leurs il elle ils elles on nous vous je tu y d l qu s c n m t j mon ma mes votre vos notre nos etre avoir fait faire peut doit comme si mais donc car tout tous toute toutes chaque entre apres avant'.split(' '));\nconst racine = w => /^\\d/.test(w) || w.length < 5 ? w : w.replace(/(s|x)$/, '').replace(/e$/, '');\nfunction termes(texte) {\n  const t = String(texte).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  const res = [];\n  for (const [w] of t.matchAll(/[a-z0-9]+(?:[-.][a-z0-9]+)*/g)) {\n    if (/[-.]/.test(w)) { res.push(w); for (const p of w.split(/[-.]/)) if (p.length > 1 && !MOTS_VIDES.has(p)) res.push(racine(p)); continue; }\n    if (w.length > 1 && !MOTS_VIDES.has(w)) res.push(racine(w));\n  }\n  return res;\n}\nfunction fnv(s, graine = 0x811c9dc5) { let h = graine >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; }\nfunction vecteurMots(texte, requete = false) {\n  const tf = new Map();\n  for (const w of termes(texte)) { const k = fnv(w); tf.set(k, (tf.get(k) || 0) + 1); }\n  const L = [...tf.values()].reduce((a, b) => a + b, 0), k1 = 1.2, b = 0.75, moy = 90;\n  const indices = [...tf.keys()];\n  return { indices, values: indices.map(i => requete ? 1 : tf.get(i) * (k1 + 1) / (tf.get(i) + k1 * (1 - b + b * L / moy))) };\n}\nconst empreinte = s => [0x811c9dc5, 0x12345678, 0x9e3779b9, 0x7f4a7c15].map(g => fnv(s, g).toString(16).padStart(8, '0')).join('');\nconst uuid = s => { const h = empreinte(s); return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20, 32)].join('-'); };\n// Question → vecteur mots-clés (le vecteur sémantique est calculé par Ollama juste après).\nconst question = String($json.chatInput ?? '').trim();\nif (!question) throw new Error('Question vide.');\nreturn [{ json: { question, mots: vecteurMots(question, true) } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000025",
+        "name": "Vecteur de la question",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          700
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:11434/api/embed",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ model: 'nomic-embed-text', input: 'search_query: ' + $json.question }) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000026",
+        "name": "Recherche hybride",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          660,
+          700
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:6333/collections/demo_rag_avance/points/query",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ prefetch: [ { query: $json.embeddings[0], using: 'dense', limit: 20 }, { query: $('Préparer la recherche').first().json.mots, using: 'mots', limit: 20 } ], query: { fusion: 'rrf' }, limit: 12, with_payload: true }) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000027",
+        "name": "Passages candidats",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          700
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Passages candidats issus de la recherche hybride, numérotés.\nconst pts = $json.result?.points ?? [];\nreturn [{ json: { question: $('Préparer la recherche').first().json.question, candidats: pts.map((p, i) => ({ n: i + 1, source: p.payload.source, section: p.payload.section, page: p.payload.page, texte: p.payload.texte, score_rrf: Math.round(p.score * 1000) / 1000 })) } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000028",
+        "name": "Reclasser les passages",
+        "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+        "typeVersion": 1.2,
+        "position": [
+          1100,
+          700
+        ],
+        "parameters": {
+          "text": "=Question : {{ $json.question }}\n\nPassages :\n{{ $json.candidats.map(p => '[' + p.n + '] ' + p.section + '\\n' + p.texte).join('\\n\\n') }}",
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"notes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"n\": {\n            \"type\": \"number\"\n          },\n          \"pertinence\": {\n            \"type\": \"number\",\n            \"description\": \"0, 1, 2 ou 3\"\n          }\n        }\n      }\n    }\n  },\n  \"required\": [\n    \"notes\"\n  ]\n}",
+          "options": {
+            "systemPromptTemplate": "Tu évalues la pertinence de passages de documents pour répondre à une question.\nPour chaque passage, donne une note de pertinence :\n3 = contient directement la réponse ; 2 = utile, contient une partie de la réponse ; 1 = même sujet mais ne répond pas ; 0 = hors sujet.\nSois strict : un passage qui parle du même thème sans donner l'information demandée vaut 1.\nNote tous les passages, avec leur numéro."
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000029",
+        "name": "Qwen 3.6 · reclassement",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          1100,
+          920
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "think": false,
+            "temperature": 0,
+            "numCtx": 16384,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000030",
+        "name": "Garder les meilleurs passages",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1320,
+          700
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Garde les passages jugés pertinents (2 ou 3 sur 3), 4 au plus, dans l'ordre de pertinence.\nconst c = $('Passages candidats').first().json;\nconst notes = new Map(($json.output?.notes ?? []).map(x => [Number(x.n), Number(x.pertinence)]));\nconst gardes = c.candidats.map(p => ({ ...p, pertinence: notes.get(p.n) ?? 0 })).filter(p => p.pertinence >= 2)\n  .sort((a, b) => b.pertinence - a.pertinence || a.n - b.n).slice(0, 4).map((p, i) => ({ ...p, ref: i + 1 }));\nreturn [{ json: { question: c.question, sources: gardes, nb: gardes.length } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000032",
+        "name": "Sources pertinentes ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1540,
+          700
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "00000000-0000-4000-8004-000000000031",
+                "leftValue": "={{ $json.nb }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000033",
+        "name": "Rédiger la réponse",
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.7,
+        "position": [
+          1760,
+          600
+        ],
+        "parameters": {
+          "promptType": "define",
+          "text": "=Tu es l'assistant documentaire de Chêne & Cie (entreprise fictive de démonstration).\nRéponds à la question uniquement à partir des sources numérotées ci-dessous.\n\nRègles :\n- Cite la source de chaque information avec son numéro entre crochets, par exemple [1] ou [2].\n- Si les sources ne permettent de répondre qu'en partie, dis-le clairement et précise ce qui manque.\n- N'invente rien, n'ajoute aucune connaissance extérieure. Reprends exactement les chiffres, durées, prix et références.\n- Commence par la réponse directe (oui, non, un chiffre, une durée), puis l'essentiel. Pas de phrase de remplissage ni de répétition de la question.\n- Français, phrases simples, 80 mots au plus. Pas de liste de sources à la fin : elle est ajoutée automatiquement.\n\nSources :\n{{ $json.sources.map(s => '[' + s.ref + '] ' + s.section + (s.page ? ' (page ' + s.page + ')' : '') + '\\n' + s.texte).join('\\n\\n') }}\n\nQuestion : {{ $json.question }}"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000034",
+        "name": "Qwen 3.6 · réponse",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          1760,
+          820
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "think": false,
+            "temperature": 0.1,
+            "numCtx": 16384,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000035",
+        "name": "Vérifier les citations",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1980,
+          600
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Vérifie les citations : seules les références [n] fournies sont gardées ; liste des sources citées en fin de réponse.\nconst { sources } = $('Garder les meilleurs passages').first().json;\nlet rep = String($json.text ?? '').trim();\nconst valides = new Set(sources.map(s => s.ref));\nrep = rep.replace(/\\[(\\d+)\\]/g, (m, n) => valides.has(+n) ? m : '');\nconst citees = [...new Set([...rep.matchAll(/\\[(\\d+)\\]/g)].map(m => +m[1]))].sort((a, b) => a - b);\nconst lignes = citees.map(n => { const s = sources.find(x => x.ref === n); return `- [${n}] ${s.source} · ${s.section}${s.page ? ' · p. ' + s.page : ''}`; });\nconst pied = lignes.length ? '\\n\\n**Sources**\\n\\n' + lignes.join('\\n') : '\\n\\n⚠ Réponse sans source citée : à vérifier.';\nreturn [{ json: { output: rep + pied, citations: citees.length } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8004-000000000037",
+        "name": "Je ne trouve pas",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1760,
+          1000
+        ],
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "00000000-0000-4000-8004-000000000036",
+                "name": "output",
+                "value": "Je ne trouve pas cette information dans les documents de Chêne & Cie. Vous pouvez reformuler la question, ou écrire à contact@chene-et-cie.demo.",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Ajouter des documents": {
+        "main": [
+          [
+            {
+              "node": "Créer la collection si besoin",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Créer la collection si besoin": {
+        "main": [
+          [
+            {
+              "node": "Un élément par fichier",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Un élément par fichier": {
+        "main": [
+          [
+            {
+              "node": "PDF ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PDF ?": {
+        "main": [
+          [
+            {
+              "node": "Extraire le texte du PDF",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Texte brut",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extraire le texte du PDF": {
+        "main": [
+          [
+            {
+              "node": "Texte du PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Texte du PDF": {
+        "main": [
+          [
+            {
+              "node": "Rassembler",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Texte brut": {
+        "main": [
+          [
+            {
+              "node": "Rassembler",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Rassembler": {
+        "main": [
+          [
+            {
+              "node": "Découper en passages",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Découper en passages": {
+        "main": [
+          [
+            {
+              "node": "Versions déjà indexées",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Versions déjà indexées": {
+        "main": [
+          [
+            {
+              "node": "Comparer aux versions indexées",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Comparer aux versions indexées": {
+        "main": [
+          [
+            {
+              "node": "À indexer ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "À indexer ?": {
+        "main": [
+          [
+            {
+              "node": "Retirer l'ancienne version",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Fin de l'indexation",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Retirer l'ancienne version": {
+        "main": [
+          [
+            {
+              "node": "Vecteurs sémantiques (nomic)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Vecteurs sémantiques (nomic)": {
+        "main": [
+          [
+            {
+              "node": "Construire les points",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Construire les points": {
+        "main": [
+          [
+            {
+              "node": "Enregistrer dans Qdrant",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Enregistrer dans Qdrant": {
+        "main": [
+          [
+            {
+              "node": "Fin de l'indexation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fin de l'indexation": {
+        "main": [
+          [
+            {
+              "node": "Rapport d'indexation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rapport d'indexation": {
+        "main": [
+          [
+            {
+              "node": "Envoyer le rapport",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Poser une question": {
+        "main": [
+          [
+            {
+              "node": "Préparer la recherche",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Préparer la recherche": {
+        "main": [
+          [
+            {
+              "node": "Vecteur de la question",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Vecteur de la question": {
+        "main": [
+          [
+            {
+              "node": "Recherche hybride",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Recherche hybride": {
+        "main": [
+          [
+            {
+              "node": "Passages candidats",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Passages candidats": {
+        "main": [
+          [
+            {
+              "node": "Reclasser les passages",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 · reclassement": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Reclasser les passages",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reclasser les passages": {
+        "main": [
+          [
+            {
+              "node": "Garder les meilleurs passages",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Garder les meilleurs passages": {
+        "main": [
+          [
+            {
+              "node": "Sources pertinentes ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sources pertinentes ?": {
+        "main": [
+          [
+            {
+              "node": "Rédiger la réponse",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Je ne trouve pas",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 · réponse": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Rédiger la réponse",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rédiger la réponse": {
+        "main": [
+          [
+            {
+              "node": "Vérifier les citations",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Europe/Paris",
+      "errorWorkflow": "supModeleClient01"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": [
+      {
+        "id": "t1",
+        "name": "catalogue"
+      }
+    ],
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-cat04RagAvance",
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ]
+  },
+  {
+    "id": "cat05CompteRendu",
+    "name": "Catalogue 05 · Compte rendu de réunion automatique (démo)",
+    "active": true,
+    "nodes": [
+      {
+        "id": "00000000-0000-4000-8005-000000000001",
+        "name": "Note 1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -40,
+          -560
+        ],
+        "parameters": {
+          "content": "## 🎙️ Compte rendu de réunion automatique\n**Problème :** après une réunion, personne n'a le temps d'écrire le compte rendu. Les décisions s'oublient, les tâches n'ont ni responsable ni date.\n\n**Solution :**\n1. On dépose l'enregistrement (audio ou vidéo, ex. dictaphone, Teams, Zoom, Meet).\n2. **Whisper**, en local, le transcrit ; les noms des participants l'aident à bien les écrire.\n3. Une **IA locale** rédige : résumé, décisions, tâches avec responsable et échéance, questions ouvertes, prochaine réunion.\n4. **Contrôles** : responsable connu, échéance valable et calculée depuis la date de la réunion, repère dans l'enregistrement.\n5. Email à tous les participants, avec le compte rendu, un fichier **agenda (.ics)** des échéances et la transcription.\n6. Les tâches sont enregistrées pour le suivi.\n\n*Démo sur données fictives. La version pro ajoute la récupération automatique des enregistrements Teams, Zoom ou Meet, l'identification des voix, les relances avant échéance et l'envoi des tâches vers Trello, Notion ou Asana.*",
+          "width": 680,
+          "height": 500,
+          "color": 5
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000002",
+        "name": "Déposer l'enregistrement",
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.5,
+        "position": [
+          0,
+          100
+        ],
+        "parameters": {
+          "formTitle": "Compte rendu de réunion",
+          "formDescription": "Démo : déposez l'enregistrement d'une réunion. Le compte rendu part par email aux participants.",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "Enregistrement (audio ou vidéo)",
+                "fieldName": "enregistrement",
+                "fieldType": "file",
+                "requiredField": true,
+                "multipleFiles": false,
+                "acceptFileTypes": ".m4a,.mp3,.wav,.mp4,.mov,.webm,.ogg"
+              },
+              {
+                "fieldLabel": "Titre",
+                "fieldName": "titre",
+                "placeholder": "Réunion d'équipe du lundi"
+              },
+              {
+                "fieldLabel": "Date de la réunion",
+                "fieldName": "date",
+                "fieldType": "date",
+                "requiredField": true
+              },
+              {
+                "fieldLabel": "Participants (une ligne par personne : Nom, rôle, email)",
+                "fieldName": "participants",
+                "fieldType": "textarea",
+                "requiredField": true,
+                "placeholder": "Marc Lefèvre, gérant, marc@exemple.fr"
+              },
+              {
+                "fieldLabel": "Mots du métier (facultatif, aide la transcription)",
+                "fieldName": "vocabulaire",
+                "placeholder": "scierie, cotes, pose, quart tournant"
+              }
+            ]
+          },
+          "responseMode": "onReceived",
+          "options": {
+            "buttonLabel": "Lancer",
+            "respondWithOptions": {
+              "values": {
+                "respondWith": "text",
+                "formSubmittedText": "Enregistrement reçu. Le compte rendu arrive par email d'ici quelques minutes (Mailpit : http://localhost:8025)."
+              }
+            }
+          }
+        },
+        "webhookId": "5d8e3f10-7b2c-4d3e-8f4a-ca7a00000007"
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000003",
+        "name": "Créer la table si besoin",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          220,
+          100
+        ],
+        "parameters": {
+          "resource": "table",
+          "operation": "create",
+          "tableName": "taches_reunions_demo",
+          "columns": {
+            "column": [
+              {
+                "name": "reunion",
+                "type": "string"
+              },
+              {
+                "name": "date_reunion",
+                "type": "date"
+              },
+              {
+                "name": "tache",
+                "type": "string"
+              },
+              {
+                "name": "responsable",
+                "type": "string"
+              },
+              {
+                "name": "echeance",
+                "type": "date"
+              },
+              {
+                "name": "statut",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {
+            "createIfNotExists": true
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000004",
+        "name": "Préparer",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Fichier, date et participants (une ligne par personne : Nom, rôle, email).\nconst src = $('Déposer l\\'enregistrement').first();\nconst fichier = Object.values(src.binary ?? {})[0];\nif (!fichier) throw new Error('Aucun fichier reçu.');\nconst participants = String(src.json.participants ?? '').split('\\n').map(l => l.split(',').map(s => s.trim())).filter(p => p[0])\n  .map(([nom, role = '', email = '']) => ({ nom, prenom: nom.split(' ')[0], role, email: /@/.test(email) ? email : '' }));\nconst date = src.json.date || $now.toISODate();\nreturn [{ json: { titre: src.json.titre || 'Réunion', date, participants, vocabulaire: String(src.json.vocabulaire ?? '').trim(), nom_fichier: fichier.fileName }, binary: { data: fichier } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000005",
+        "name": "Transcrire (Whisper local)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          660,
+          100
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://host.docker.internal:9000/v1/audio/transcriptions",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "file",
+                "inputDataFieldName": "data"
+              },
+              {
+                "name": "model",
+                "value": "whisper-1"
+              },
+              {
+                "name": "language",
+                "value": "fr"
+              },
+              {
+                "name": "prompt",
+                "value": "=Réunion d'équipe. Participants : {{ $json.participants.map(p => p.nom).join(', ') }}.{{ $json.vocabulaire ? ' Vocabulaire : ' + $json.vocabulaire + '.' : '' }}"
+              },
+              {
+                "name": "response_format",
+                "value": "verbose_json"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 3600000
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 5000
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000006",
+        "name": "Transcription repérée",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Transcription repérée [MM:SS] pour l'IA, et texte brut pour l'archive.\nconst t = $input.first().json;\nconst segs = t.segments ?? [];\nif (!segs.length) throw new Error('Transcription vide : l\\'enregistrement contient-il de la parole ?');\nconst mmss = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');\nreturn [{ json: { texte: t.text, reperee: segs.map(s => `[${mmss(s.start)}] ${s.text.trim()}`).join('\\n'), duree_s: Math.round(segs[segs.length - 1].end), duree: mmss(segs[segs.length - 1].end), temps_transcription_s: t.temps_de_calcul_s ?? null } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000007",
+        "name": "Rédiger le compte rendu",
+        "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+        "typeVersion": 1.2,
+        "position": [
+          1100,
+          100
+        ],
+        "parameters": {
+          "text": "=Réunion : {{ $('Préparer').first().json.titre }}\nVocabulaire du métier : {{ $('Préparer').first().json.vocabulaire || 'non fourni' }}\nDate de la réunion : {{ DateTime.fromISO($('Préparer').first().json.date).setLocale('fr').toFormat('cccc d LLLL yyyy') }} ({{ $('Préparer').first().json.date }})\nParticipants : {{ $('Préparer').first().json.participants.map(p => p.prenom + ' (' + p.nom + (p.role ? ', ' + p.role : '') + ')').join(' ; ') }}\n\nTranscription horodatée :\n{{ $json.reperee }}",
+          "schemaType": "manual",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"resume\": {\n      \"type\": \"string\"\n    },\n    \"decisions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"taches\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"tache\": {\n            \"type\": \"string\"\n          },\n          \"responsable\": {\n            \"type\": \"string\",\n            \"description\": \"Prénom d'un participant, ou vide\"\n          },\n          \"attribution\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"explicite\",\n              \"déduite\"\n            ]\n          },\n          \"echeance\": {\n            \"type\": \"string\",\n            \"description\": \"AAAA-MM-JJ ou vide\"\n          },\n          \"horodatage\": {\n            \"type\": \"string\",\n            \"description\": \"MM:SS\"\n          }\n        }\n      }\n    },\n    \"questions_ouvertes\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"prochaine_reunion\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"date\": {\n          \"type\": \"string\"\n        },\n        \"heure\": {\n          \"type\": \"string\"\n        }\n      }\n    }\n  },\n  \"required\": [\n    \"resume\",\n    \"decisions\",\n    \"taches\",\n    \"questions_ouvertes\"\n  ]\n}",
+          "options": {
+            "systemPromptTemplate": "Tu rédiges le compte rendu d'une réunion d'équipe à partir de sa transcription horodatée.\nLa transcription n'indique pas qui parle. Pour attribuer une tâche :\n- « explicite » : la personne est nommée (« Julie, tu passes la commande », « Merci Karim ») ou le contexte désigne sans ambiguïté qui s'engage ;\n- « déduite » : tu choisis le responsable par le contexte ou par son rôle (par exemple, un poseur va sur les chantiers, une cheffe d'atelier fait les essais en atelier). Utilise les rôles pour lever les ambiguïtés.\nSi un mot semble mal transcrit, utilise le vocabulaire du métier fourni pour le corriger dans le compte rendu.\n\nRègles :\n- Uniquement ce qui a été dit. N'invente ni tâche, ni décision, ni date.\n- Résumé : 3 phrases au plus.\n- Décisions : ce qui a été décidé ou validé, une phrase chacune.\n- Tâches : une action concrète, avec un responsable choisi parmi les participants (prénom exact) ou vide si personne n'est désigné.\n  Échéance au format AAAA-MM-JJ, calculée à partir de la date de la réunion (« avant mercredi », « lundi prochain »…). Laisse vide si aucune échéance n'est dite (par exemple « dès que possible »).\n  « Avant mercredi » signifie au plus tard le mercredi qui suit la réunion.\n  Horodatage MM:SS du moment où la tâche est attribuée.\n- Questions ouvertes : sujets laissés sans réponse ou reportés.\n- Prochaine réunion : date AAAA-MM-JJ et heure HH:MM si elles sont dites, sinon vide."
+          }
+        },
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 2000
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000008",
+        "name": "Qwen 3.6 (Ollama, local)",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+        "typeVersion": 1,
+        "position": [
+          1100,
+          320
+        ],
+        "parameters": {
+          "model": "qwen3.6:27b-mlx",
+          "options": {
+            "think": false,
+            "temperature": 0.1,
+            "numCtx": 16384,
+            "keepAlive": "30m"
+          }
+        },
+        "credentials": {
+          "ollamaApi": {
+            "id": "demoOllamaLocal01",
+            "name": "Ollama local"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000009",
+        "name": "Contrôles et fichiers",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1340,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "// Contrôles, puis fichiers joints : compte rendu (Markdown), échéances (.ics), transcription (.txt).\nconst r = $('Préparer').first().json;\nconst tr = $('Transcription repérée').first().json;\nconst cr = $('Rédiger le compte rendu').first().json.output;\nconst prenoms = new Map(r.participants.map(p => [p.prenom.toLowerCase(), p]));\nconst sec = s => { const m = /^(\\d{1,3}):(\\d{2})$/.exec(String(s ?? '').trim()); return m ? +m[1] * 60 + +m[2] : NaN; };\nconst jour = d => DateTime.fromISO(d).setLocale('fr').toFormat('cccc d LLLL');\nconst taches = (cr.taches ?? []).map(t => {\n  const p = prenoms.get(String(t.responsable ?? '').trim().split(' ')[0].toLowerCase());\n  const ech = /^\\d{4}-\\d{2}-\\d{2}$/.test(t.echeance ?? '') ? t.echeance : '';\n  const alertes = [];\n  if (!p) alertes.push('responsable à désigner');\n  else if (t.attribution !== 'explicite') alertes.push('responsable à confirmer');\n  if (!ech) alertes.push('échéance à préciser');\n  else if (ech < r.date) alertes.push('échéance antérieure à la réunion');\n  if (isNaN(sec(t.horodatage)) || sec(t.horodatage) > tr.duree_s + 5) alertes.push('horodatage invalide');\n  return { tache: t.tache, responsable: p ? p.prenom : '', email: p?.email ?? '', echeance: ech, echeance_lisible: ech ? jour(ech) : '', horodatage: t.horodatage, alertes };\n});\nconst aVerifier = taches.filter(t => t.alertes.length).length;\n\nconst md = ['# ' + r.titre + ' · ' + DateTime.fromISO(r.date).setLocale('fr').toFormat('cccc d LLLL yyyy'), '',\n  '*Participants : ' + r.participants.map(p => p.nom + (p.role ? ' (' + p.role + ')' : '')).join(', ') + ' · durée ' + tr.duree + '*', '',\n  '## Résumé', '', cr.resume, '', '## Décisions', '', ...(cr.decisions ?? []).map(d => '- ' + d), '',\n  '## Tâches', '', '| Tâche | Responsable | Échéance | Repère |', '|---|---|---|---|',\n  ...taches.map(t => `| ${t.tache} | ${t.responsable ? t.responsable + (t.alertes.includes('responsable à confirmer') ? ' (à confirmer)' : '') : '⚠ à désigner'} | ${t.echeance_lisible || '⚠ à préciser'} | ${t.horodatage} |`), '',\n  '## Questions ouvertes', '', ...(cr.questions_ouvertes ?? []).map(q => '- ' + q), '',\n  ...(cr.prochaine_reunion?.date ? ['## Prochaine réunion', '', jour(cr.prochaine_reunion.date) + (cr.prochaine_reunion.heure ? ' à ' + cr.prochaine_reunion.heure : ''), ''] : []),\n].join('\\n');\n\nconst ics = d => d.replace(/-/g, '');\nconst lendemain = d => DateTime.fromISO(d).plus({ days: 1 }).toISODate().replace(/-/g, '');\nconst echap = s => String(s).replace(/[\\\\;,]/g, m => '\\\\' + m).replace(/\\n/g, ' ');\nconst stamp = $now.toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\");\nconst evts = taches.filter(t => t.echeance).map((t, i) => ['BEGIN:VEVENT', 'UID:' + r.date + '-' + i + '@chene-et-cie.demo', 'DTSTAMP:' + stamp,\n  'DTSTART;VALUE=DATE:' + ics(t.echeance), 'DTEND;VALUE=DATE:' + lendemain(t.echeance),\n  'SUMMARY:' + echap('Échéance · ' + t.tache + (t.responsable ? ' (' + t.responsable + ')' : '')),\n  'DESCRIPTION:' + echap('Tâche décidée lors de « ' + r.titre + ' » du ' + r.date + ', à ' + t.horodatage + ' de l\\'enregistrement.'), 'END:VEVENT']);\nif (cr.prochaine_reunion?.date && /^\\d{2}:\\d{2}$/.test(cr.prochaine_reunion.heure ?? '')) {\n  const debut = DateTime.fromISO(cr.prochaine_reunion.date + 'T' + cr.prochaine_reunion.heure, { zone: 'Europe/Paris' });\n  evts.push(['BEGIN:VEVENT', 'UID:prochaine-' + r.date + '@chene-et-cie.demo', 'DTSTAMP:' + stamp, 'DTSTART:' + debut.toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\"),\n    'DTEND:' + debut.plus({ minutes: 30 }).toUTC().toFormat(\"yyyyMMdd'T'HHmmss'Z'\"), 'SUMMARY:' + echap('Prochaine réunion · ' + r.titre), 'END:VEVENT']);\n}\nconst calendrier = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//VudeLao//Compte rendu de reunion//FR', 'CALSCALE:GREGORIAN', ...evts.flat(), 'END:VCALENDAR'].join('\\r\\n');\n\nconst f = async (txt, nom, type) => await this.helpers.prepareBinaryData(Buffer.from(txt, 'utf8'), nom, type);\nconst base = 'reunion-' + r.date;\nreturn [{ json: { titre: r.titre, date: r.date, date_lisible: DateTime.fromISO(r.date).setLocale('fr').toFormat('cccc d LLLL yyyy'), duree: tr.duree,\n    participants: r.participants, destinataires: r.participants.map(p => p.email).filter(Boolean).join(','),\n    resume: cr.resume, decisions: cr.decisions ?? [], taches, questions_ouvertes: cr.questions_ouvertes ?? [],\n    prochaine: cr.prochaine_reunion?.date ? jour(cr.prochaine_reunion.date) + (cr.prochaine_reunion.heure ? ' à ' + cr.prochaine_reunion.heure : '') : '',\n    a_verifier: aVerifier },\n  binary: {\n    compte_rendu: await f(md, base + '-compte-rendu.md', 'text/markdown'),\n    agenda: await f(calendrier, base + '-echeances.ics', 'text/calendar'),\n    transcription: await f(tr.reperee, base + '-transcription.txt', 'text/plain'),\n  } }];"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000010",
+        "name": "Envoyer aux participants",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          1560,
+          100
+        ],
+        "parameters": {
+          "fromEmail": "comptes-rendus@chene-et-cie.demo",
+          "toEmail": "={{ $json.destinataires }}",
+          "subject": "=Compte rendu · {{ $json.titre }} · {{ $json.date_lisible }}{{ $json.a_verifier ? ' · ⚠ ' + $json.a_verifier + ' tâche(s) à compléter' : '' }}",
+          "emailFormat": "html",
+          "html": "=<div style=\"font-family:Arial,sans-serif;max-width:680px;color:#1D2422\">\n<p style=\"margin:0 0 4px;color:#5E6662;font-size:13px\">Compte rendu automatique · {{ $json.date_lisible }} · {{ $json.duree }} d'enregistrement</p>\n<h2 style=\"margin:0 0 8px\">{{ $json.titre.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</h2>\n<p style=\"margin:0 0 14px;color:#3B4441\">{{ $json.resume.replaceAll('&','&amp;').replaceAll('<','&lt;') }}</p>\n{{ $json.a_verifier ? '<p style=\"padding:10px 14px;border-radius:6px;background:#FBEDE6\"><b>⚠ ' + $json.a_verifier + ' tâche(s) à compléter</b> : responsable à confirmer, ou échéance à préciser.</p>' : '' }}\n<h3 style=\"margin:18px 0 6px\">Décisions</h3>\n<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6\">{{ $json.decisions.map(d => '<li>' + d.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') }}</ul>\n<h3 style=\"margin:18px 0 6px\">Tâches</h3>\n<table style=\"border-collapse:collapse;width:100%;font-size:14px\"><tr style=\"color:#5E6662\"><td style=\"padding:4px 0;border-bottom:1px solid #D8D2C5\">Tâche</td><td style=\"border-bottom:1px solid #D8D2C5\">Qui</td><td style=\"border-bottom:1px solid #D8D2C5\">Pour</td></tr>\n{{ $json.taches.map(t => '<tr><td style=\"padding:6px 10px 6px 0;vertical-align:top\">' + t.tache.replaceAll('&','&amp;').replaceAll('<','&lt;') + ' <span style=\"color:#8A918D;font-size:12px\">(' + t.horodatage + ')</span></td><td style=\"vertical-align:top;padding-top:6px\">' + (t.responsable ? t.responsable + (t.alertes.includes('responsable à confirmer') ? ' <span style=\"color:#9E5238;font-size:12px\">(à confirmer)</span>' : '') : '<b style=\"color:#9E5238\">à désigner</b>') + '</td><td style=\"vertical-align:top;padding-top:6px;white-space:nowrap\">' + (t.echeance_lisible || '<b style=\"color:#9E5238\">à préciser</b>') + '</td></tr>').join('') }}</table>\n<h3 style=\"margin:18px 0 6px\">Questions ouvertes</h3>\n<ul style=\"margin:0;padding-left:18px;font-size:14px;line-height:1.6\">{{ $json.questions_ouvertes.length ? $json.questions_ouvertes.map(q => '<li>' + q.replaceAll('&','&amp;').replaceAll('<','&lt;') + '</li>').join('') : '<li>Aucune</li>' }}</ul>\n{{ $json.prochaine ? '<p style=\"margin-top:16px\"><b>Prochaine réunion :</b> ' + $json.prochaine + '</p>' : '' }}\n<p style=\"margin-top:18px;font-size:12px;color:#5E6662\">En pièces jointes : le compte rendu, les échéances à ajouter à votre agenda (.ics) et la transcription horodatée. Transcription et rédaction par IA locale : l'enregistrement n'a quitté aucun serveur. Démonstration sur données fictives (« Chêne &amp; Cie »).</p></div>",
+          "options": {
+            "appendAttribution": false,
+            "attachments": "compte_rendu,agenda,transcription"
+          }
+        },
+        "credentials": {
+          "smtp": {
+            "id": "demoSmtpMailpit01",
+            "name": "SMTP Mailpit (démo)"
+          }
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000011",
+        "name": "Une ligne par tâche",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1780,
+          100
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const c = $('Contrôles et fichiers').first().json;\nreturn c.taches.map(t => ({ json: { reunion: c.titre, date_reunion: c.date, tache: t.tache, responsable: t.responsable || 'à désigner', echeance: t.echeance || null, statut: 'à faire' } }));"
+        }
+      },
+      {
+        "id": "00000000-0000-4000-8005-000000000012",
+        "name": "Enregistrer les tâches",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          2000,
+          100
+        ],
+        "parameters": {
+          "resource": "row",
+          "operation": "insert",
+          "dataTableId": {
+            "__rl": true,
+            "mode": "name",
+            "value": "taches_reunions_demo"
+          },
+          "columns": {
+            "mappingMode": "autoMapInputData",
+            "matchingColumns": [],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false,
+            "value": {},
+            "schema": [
+              {
+                "id": "reunion",
+                "displayName": "reunion",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "date_reunion",
+                "displayName": "date_reunion",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "tache",
+                "displayName": "tache",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "responsable",
+                "displayName": "responsable",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "echeance",
+                "displayName": "echeance",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "dateTime",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "statut",
+                "displayName": "statut",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              }
+            ]
+          },
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Déposer l'enregistrement": {
+        "main": [
+          [
+            {
+              "node": "Créer la table si besoin",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Créer la table si besoin": {
+        "main": [
+          [
+            {
+              "node": "Préparer",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Préparer": {
+        "main": [
+          [
+            {
+              "node": "Transcrire (Whisper local)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcrire (Whisper local)": {
+        "main": [
+          [
+            {
+              "node": "Transcription repérée",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcription repérée": {
+        "main": [
+          [
+            {
+              "node": "Rédiger le compte rendu",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Qwen 3.6 (Ollama, local)": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Rédiger le compte rendu",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rédiger le compte rendu": {
+        "main": [
+          [
+            {
+              "node": "Contrôles et fichiers",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Contrôles et fichiers": {
+        "main": [
+          [
+            {
+              "node": "Envoyer aux participants",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Envoyer aux participants": {
+        "main": [
+          [
+            {
+              "node": "Une ligne par tâche",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Une ligne par tâche": {
+        "main": [
+          [
+            {
+              "node": "Enregistrer les tâches",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "timezone": "Europe/Paris",
+      "errorWorkflow": "supModeleClient01"
+    },
+    "staticData": null,
+    "pinData": {},
+    "tags": [
+      {
+        "id": "t1",
+        "name": "catalogue"
+      }
+    ],
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-cat05CompteRendu",
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ]
+  },
+  {
+    "id": "demoSyncCrmSale",
+    "name": "Synchro CRM horaire (démo, clé en clair)",
+    "active": true,
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "updatedAt": "2026-10-01T08:00:00.000Z",
+    "versionId": "v1-sync",
+    "tags": [],
+    "staticData": {
+      "lastId": 4021
+    },
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "shared": [
+      {
+        "role": "workflow:owner",
+        "project": {
+          "name": "Gérant <gerant@chene-et-cie.demo>"
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "id": "a1",
+        "name": "Toutes les heures",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "hours"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "a2",
+        "name": "Lire le CRM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "url": "https://crm.exemple.demo/api/contacts",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer sk-demo-4f9a2c7e1b8d3f6a0e5c9b2d7a4f1e8c"
+              }
+            ]
+          },
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Toutes les heures": {
+        "main": [
+          [
+            {
+              "node": "Lire le CRM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {
+      "Lire le CRM": [
+        {
+          "json": {
+            "nom": "Claire Fontaine",
+            "email": "claire.fontaine@client.demo",
+            "telephone": "06 00 00 00 00"
+          }
+        }
+      ]
+    }
+  }
+]
